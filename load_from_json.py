@@ -1,5 +1,5 @@
 import json
-from temporal_network import TemporalNetwork
+from temporal_networks.temporal_network_classes import TemporalNetwork
 
 def load_from_json(filename):
     """

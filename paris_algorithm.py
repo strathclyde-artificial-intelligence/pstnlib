@@ -6,7 +6,7 @@ import numpy as np
 import numpy as np
 from scipy import stats
 from math import inf
-from temporal_networks.temporal_network import ProbabilisticTemporalNetwork, Constraint, TimePoint
+from temporal_network_classes import ProbabilisticTemporalNetwork, Constraint, TimePoint
 import time
 import gurobipy as gp
 from gurobipy import GRB
