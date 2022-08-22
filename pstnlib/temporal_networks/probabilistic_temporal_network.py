@@ -44,7 +44,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         for node in nodes:
             to_add = TimePoint(node["id"], node["label"])
             self.add_time_point(to_add)
-            
+
         for edge in edges:
             source, sink = self.get_timepoint_by_id(edge["source"]), self.get_timepoint_by_id(edge["sink"])
             if "distribution" in edge:
@@ -53,6 +53,39 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 distribution = None
             to_add = Constraint(source, sink, edge["label"], edge["type"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]}, distribution)
             self.add_constraint(to_add)
+
+    
+    def parse_uncertainties_from_json(self, file: json):
+        """
+        Reads in a json of action and til uncertainties, such that the uncertainty x = sd/mean. Updates edges with
+        distributions and makes edges probabilistic. Returns a PSTN.
+        """
+        if file[-5:] != ".json":
+            file = file + ".json"
+        with open(file) as f:
+            uncertainties = json.load(f)
+        actions, tils = uncertainties["actions"], uncertainties["tils"]
+
+        for action in actions:
+            for constraint in self.constraints:
+                if action["name"] in constraint.label:
+                    if constraint.type == "stc":
+                        assert constraint.ub == constraint.lb
+                        constraint.distribution = {"mean": constraint.ub * action["mean_fraction"], "sd": constraint.ub * action["sd_fraction"]}
+                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
+                        constraint.type = "pstc"
+                    else:
+                        raise ValueError("Uncertainties already added to costraints.")
+        for til in tils:
+            for constraint in self.constraints:
+                if til["name"] in constraint.label:
+                    if constraint.type == "stc":
+                        assert constraint.ub == constraint.lb
+                        constraint.distribution = {"mean": constraint.ub * til["mean_fraction"], "sd": constraint.ub * til["sd_fraction"]}
+                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
+                        constraint.type = "pstc"
+                    else:
+                        raise ValueError("Uncertainties already added to constraints.")
 
     def add_constraint(self, constraint: Constraint) -> None:
         """
@@ -154,38 +187,6 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                         return {"start": incoming_source[0], "end": None}
                     except IndexError:
                         return {"start": None, "end": incoming_sink[0]}
-
-    def read_uncertainties_from_json(self, file: json):
-        """
-        Reads in a json of action and til uncertainties, such that the uncertainty x = sd/mean. Updates edges with
-        distributions and makes edges probabilistic. Returns a PSTN.
-        """
-        if file[-5:] != ".json":
-            file = file + ".json"
-        with open(file) as f:
-            uncertainties = json.load(f)
-        actions, tils = uncertainties["actions"], uncertainties["tils"]
-
-        for action in actions:
-            for constraint in self.constraints:
-                if action["name"] in constraint.label:
-                    if constraint.type == "stc":
-                        assert constraint.ub == constraint.lb
-                        constraint.distribution = {"mean": constraint.ub * action["mean_fraction"], "sd": constraint.ub * action["sd_fraction"]}
-                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
-                        constraint.type = "pstc"
-                    else:
-                        raise ValueError("Uncertainties already added to costraints.")
-        for til in tils:
-            for constraint in self.constraints:
-                if til["name"] in constraint.label:
-                    if constraint.type == "stc":
-                        assert constraint.ub == constraint.lb
-                        constraint.distribution = {"mean": constraint.ub * til["mean_fraction"], "sd": constraint.ub * til["sd_fraction"]}
-                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
-                        constraint.type = "pstc"
-                    else:
-                        raise ValueError("Uncertainties already added to constraints.")
     
     def plot_dot_graph(self):
         """

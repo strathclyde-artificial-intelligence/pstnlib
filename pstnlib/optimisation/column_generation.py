@@ -13,10 +13,6 @@ from math import sqrt, log, exp
 import numpy as np
 import additional_functions as fn
 import time
-from timeout import timeout
-import pygad
-from LinearProgramParis import solveLP
-from gecco_class import gecco
 #from scipy.optimize import line_search
 
 np.seterr(divide='raise')
@@ -24,7 +20,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
-inf = 10000
+inf = 1000000000
 
 def getStandardForm(PSTN, model, correlation=0):
     '''
@@ -273,7 +269,6 @@ def masterProblem(gecco):
     print("Evaluated probability: ", norm(gecco.mean, gecco.cov).cdf(bounds))
     return (m, np.c_[z_sol])
 
-    
 def column_generation_nm(z, gecco):
     '''
     Description:    Solves the column generaion problem (below) via SciPy optimize:

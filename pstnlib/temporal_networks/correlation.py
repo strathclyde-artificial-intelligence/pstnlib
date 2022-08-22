@@ -1,6 +1,8 @@
+from typing import Dict
 from pstnlib.temporal_networks.constraint import Constraint
 import numpy as np
 from scipy import stats
+from math import sqrt
 
 class Correlation:
     """
@@ -9,7 +11,7 @@ class Correlation:
     We add a positive definite correlation matrix R, such that the covariance matrix is Sigma = auxiliary R auxiliary^T
     """
     def __init__(self, constraints: list[Constraint]):
-        self.contraints = constraints
+        self.constraints = constraints
         for c in self.constraints:
             if c.type != "pstc":
                 raise AttributeError("Correlated constraints must be of type pstc (probabilistic simple temporal constraint)")
@@ -24,6 +26,19 @@ class Correlation:
                     self.auxiliary[i, j] = constraints[i].sd
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
 
+    def __str__(self) -> None:
+        """
+        used to print the correlation in a user-friendly way
+        """
+        
+        return "Constraints: " +  str([c.get_description() for c in self.constraints]) + " , " + "Mean: " + str(self.mean) + " , " + "Correlation: " +  str(self.correlation)
+    
+    def to_json(self) -> dict:
+        """
+        Returns a dictionary of correlation for json printing
+        """
+        return {"constraints": [c.to_json() for c in self.constraints], "mean": list(self.mean), "correlation": [list(i) for i in self.correlation]}
+        
     def add_correlation(self, correlation: np.ndarray) -> None:
         """
         Updates correlation matrix and covariance matrix
@@ -36,7 +51,7 @@ class Correlation:
         self.correlation = correlation
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
     
-    def add_random_correlation(self, eta):
+    def add_random_correlation(self, eta = 0.5):
         """
         Description:    Code for generating random positive semidefinite correlation matrices. Taken from https://gist.github.com/junpenglao/b2467bb3ad08ea9936ddd58079412c1a
                         based on code from "Generating random correlation matrices based on vines and extended onion method", Daniel Lewandowski, Dorots Kurowicka and Harry Joe, 2009.

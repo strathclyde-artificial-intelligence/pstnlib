@@ -1,8 +1,12 @@
+from numpy import correlate
 from otpl.pddl.parser import Parser
 from otpl.plans.temporal_plan import PlanTemporalNetwork
+from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
+from pstnlib.temporal_networks.correlation import Correlation
 from random_uncertainties import save_random_uncertainties
+import random
 
 domain = "temporal-planning-domains/rovers-metric-time-2006/domain.pddl"
 problem = "temporal-planning-domains/rovers-metric-time-2006/instances/instance-1.pddl"
@@ -28,18 +32,38 @@ network.plot_dot_graph()
 uncertainties = "temporal-planning-domains/rovers-metric-time-2006/uncertainties/rovers_instance-1_uncertainties_1.json"
 save_random_uncertainties(domain, problem, uncertainties)
 
-# # makes pstn, reads uncertainties from json and prints
+# makes pstn, reads uncertainties from json and saves pstn as json
 pstn = ProbabilisticTemporalNetwork()
 pstn.parse_from_temporal_network(network)
-pstn.read_uncertainties_from_json(uncertainties)
+pstn.parse_uncertainties_from_json(uncertainties)
 pstn.name = "rovers_instance_1_pstn_new"
-pstn.plot_dot_graph()
 pstn.save_as_json("junk/test.json")
 
+# loads the saved pstn from json
 pstn2 = ProbabilisticTemporalNetwork()
 pstn2.parse_from_json("junk/test.json")
-pstn2.name = "rovers_instance_1_pstn_copy"
-pstn2.plot_dot_graph()
+pstn2.name = "rovers_instance_1_pstn"
+
+# Gets random probabilistic constraints to add correlation between
+correlated_edges = random.sample(pstn2.get_probabilistic_constraints(), 4)
+corr1, corr2 = correlated_edges[:2], correlated_edges[2:]
+corr1, corr2 = Correlation(corr1), Correlation(corr2)
+
+# Adds a random psd correlation matric
+corr1.add_random_correlation()
+corr2.add_random_correlation()
+
+# Makes a correlated temporal network
+cpstn = CorrelatedTemporalNetwork()
+cpstn.parse_from_probabilistic_temporal_network(pstn2)
+cpstn.add_correlation(corr1)
+cpstn.add_correlation(corr2)
+cpstn.save_as_json("junk/cpstn")
+
+# Testing save/load to/from json
+cpstn2 = CorrelatedTemporalNetwork()
+cpstn2.parse_from_json("junk/cpstn")
+cpstn2.save_as_json("junk/cpstn2")
 
 
 # # #Find strongly controllable schedule

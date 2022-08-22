@@ -304,7 +304,7 @@ class TemporalNetwork:
         except subprocess.CalledProcessError:
             print("Please close the PDF and rerun the script")
 
-    def print_graph_as_json(self):
+    def print_as_json(self):
         """
         print the graph in JSON format.
         """
