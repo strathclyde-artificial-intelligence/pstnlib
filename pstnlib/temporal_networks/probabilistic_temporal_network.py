@@ -24,7 +24,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         for constraint in temporal_network.constraints:
             source = self.get_timepoint_by_id(constraint.source.id)
             sink = self.get_timepoint_by_id(constraint.sink.id)
-            to_add = Constraint(source, sink, constraint.label[:], constraint.type[:], constraint.duration_bound.copy())
+            to_add = Constraint(source, sink, constraint.label[:], constraint.duration_bound.copy())
             self.add_constraint(to_add)
     
     def parse_from_json(self, json_file):
@@ -66,23 +66,23 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         actions, tils = uncertainties["actions"], uncertainties["tils"]
 
         for action in actions:
-            for constraint in self.constraints:
-                if action["name"] in constraint.label:
-                    if constraint.type == "stc":
-                        
-                        constraint.distribution = {"mean": constraint.ub * action["mean_fraction"], "sd": constraint.ub * action["sd_fraction"]}
-                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
-                        constraint.type = "pstc"
+            for i in range(len(self.constraints)):
+                if action["name"] in self.constraints[i].label:
+                    if self.constraints[i].type == "stc":
+                        # Replaces the simple temporal constraint with probabilistic version.
+                        distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
+                        new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
+                        self.constraints[i] = new_constraint
                     else:
                         raise ValueError("Uncertainties already added to costraints.")
         for til in tils:
-            for constraint in self.constraints:
-                if til["name"] in constraint.label:
-                    if constraint.type == "stc":
-                        assert constraint.ub == constraint.lb
-                        constraint.distribution = {"mean": constraint.ub * til["mean_fraction"], "sd": constraint.ub * til["sd_fraction"]}
-                        constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
-                        constraint.type = "pstc"
+            for i in range(len(self.constraints)):
+                if til["name"] in self.constraints[i].label:
+                    if self.constraints[i].type == "stc":
+                        # Replaces the simple temporal constraint with probabilistic version.
+                        distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
+                        new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
+                        self.constraints[i] = new_constraint
                     else:
                         raise ValueError("Uncertainties already added to constraints.")
 
@@ -100,25 +100,42 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 self.add_time_point(constraint.sink)
         # If the source and sink time-points are the same way round in the new constraint versus existing
         elif existing.source == constraint.source:
-            # Checks whether the new constraint has a tighter bound
-            if constraint.ub < existing.ub:
-                existing.ub = constraint.ub
-            elif constraint.lb > existing.lb:
-                existing.lb = constraint.lb
+            if existing.type == "stc" and constraint.type == "stc":
+                # Checks whether the new constraint has a tighter bound
+                if constraint.ub < existing.ub:
+                    existing.ub = constraint.ub
+                elif constraint.lb > existing.lb:
+                    existing.lb = constraint.lb
+            elif existing.type == "stc" and constraint.type == "pstc":
+                # Replaces the constraint with probabilistic version.
+                existing_index = self.constraints.index(existing)
+                self.constraints[existing_index] = constraint
+            elif existing.type == "pstc" and constraint.type == "stc":
+                # Replaces the probabilistic constraint with normal version.
+                existing_index = self.constraints.index(existing)
+                self.constraints[existing_index] = constraint
         # If the source and sink time-points are the wrong way round in the new constraint versus existing
         elif existing.sink == constraint.source:
-            if -constraint.lb < existing.ub:
-                existing.ub = -constraint.lb
-            if -constraint.ub > existing.lb:
-                existing.lb = -constraint.ub
-    
+            if existing.type == "stc" and constraint.type == "stc":
+                if -constraint.lb < existing.ub:
+                    existing.ub = -constraint.lb
+                if -constraint.ub > existing.lb:
+                    existing.lb = -constraint.ub
+            elif existing.type == "stc" and constraint.type == "pstc":
+                # Replaces the constraint with probabilistic version.
+                existing_index = self.constraints.index(existing)
+                self.constraints[existing_index] = constraint
+            elif existing.type == "pstc" and constraint.type == "stc":
+                # Replaces the probabilistic constraint with normal version.
+                existing_index = self.constraints.index(existing)
+                self.constraints[existing_index] = constraint
+        
     def get_probabilistic_constraints(self) -> list[Constraint]:
         """
         returns a list of probabilistic constraints (those with type = pstc)
         """
         return [i for i in self.constraints if i.type == "pstc"]
 
-    
     def get_requirement_constraints(self) -> list[Constraint]:
         """
         returns a list of requirement constraints (those with type = stc)
@@ -194,7 +211,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         for constraint in probabilistics:
             plot.edge(str(constraint.source.id), str(constraint.sink.id), label="{}: N({}, {})".format(constraint.label, constraint.mean, constraint.sd))
         try:
-            plot.render('logs/{}.png'.format(self.name), view=True)
+            plot.render('junk/{}.png'.format(self.name), view=True)
         except subprocess.CalledProcessError:
             print("Please close the PDF and rerun the script")
 

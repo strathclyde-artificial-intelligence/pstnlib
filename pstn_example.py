@@ -37,13 +37,15 @@ save_random_uncertainties(domain, problem, uncertainties)
 pstn = ProbabilisticTemporalNetwork()
 pstn.parse_from_temporal_network(network)
 pstn.parse_uncertainties_from_json(uncertainties)
-pstn.name = "rovers_instance_1_pstn_new"
+pstn.name = "rovers_instance_1_pstn"
+pstn.plot_dot_graph()
 pstn.save_as_json("junk/test.json")
 
 # loads the saved pstn from json
 pstn2 = ProbabilisticTemporalNetwork()
 pstn2.parse_from_json("junk/test.json")
-pstn2.name = "rovers_instance_1_pstn"
+pstn2.name = "rovers_instance_1_pstn_copy"
+pstn2.plot_dot_graph()
 
 # Gets random probabilistic constraints to add correlation between
 correlated_edges = random.sample(pstn2.get_probabilistic_constraints(), 4)

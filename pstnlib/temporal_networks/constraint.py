@@ -60,7 +60,7 @@ class ProbabilisticConstraint(Constraint):
         self.type = "pstc"
         assert list(distribution.keys()) == ["mean", "sd"],  "Distribution should be in the form {'mean': float, 'sd': float}"
         self.distribution = distribution
-        self.approximation = {"points": [], "evaluations": []}
+        self.approximation = None
 
     def __str__(self) -> None:
         """
@@ -82,7 +82,7 @@ class ProbabilisticConstraint(Constraint):
         self.distribuion = distribution
     
     def evaluate_probability(self, l, u):
-        distribution = stats.normal(self.mean, self.sd)
+        distribution = stats.norm(self.mean, self.sd)
         return distribution.cdf(u) - distribution.cdf(l)
 
     @property
@@ -92,5 +92,3 @@ class ProbabilisticConstraint(Constraint):
     @property
     def sd(self):
         return self.distribution["sd"]
-
-        self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict[str, str], distribution: dict[str, str] = None

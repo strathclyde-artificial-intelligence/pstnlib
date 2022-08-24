@@ -25,7 +25,7 @@ class Correlation:
                 if i == j:
                     self.auxiliary[i, j] = constraints[i].sd
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
-        self.approximation = {"points": [], "evaluations": []}
+        self.approximation = None
 
     def __str__(self) -> None:
         """
@@ -94,7 +94,8 @@ class Correlation:
 
         xi_mean = omega @ self.mean
         xi_cov = omega @ self.covariance @ omega.transpose()
-        l = [-1 * i for i in l]
-        u.extend(l)
-        z = np.array(u)
+
+        ls = np.array([-i for i in l])
+        us = np.array(u)
+        z = np.concatenate([us, ls])
         return stats.multivariate_normal(xi_mean, xi_cov, allow_singular=True).cdf(z)

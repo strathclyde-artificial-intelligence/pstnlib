@@ -60,7 +60,7 @@ class TemporalNetwork:
             source, sink = self.get_timepoint_by_id(edge["source"]), self.get_timepoint_by_id(edge["sink"])
             if edge["type"] == "pstc":
                 raise AttributeError("Edge is of type 'probabilistic simple temporal constraint'. This constraint type is only valid for instances of Probabilistic Tempoal Network class.")
-            to_add = Constraint(source, sink, edge["label"], edge["type"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]})
+            to_add = Constraint(source, sink, edge["label"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]})
             self.add_constraint(to_add)
 
     def copy(self):

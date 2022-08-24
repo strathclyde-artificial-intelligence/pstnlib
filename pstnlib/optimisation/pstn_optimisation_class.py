@@ -3,52 +3,53 @@ from unicodedata import name
 import numpy as np
 from math import log, exp
 from scipy import stats
+from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 import gurobipy as gp
 from gurobipy import GRB
+class optimisation_solution(object):
+    """
+    Description:    Class representing a solution to the restricted master problem on a given iteration.
+    Parameters:     model - Gurobi model instance containing solution.
+                    runtime - cumulative runtime of current iteration.
+    """
+    def __init__(self) -> None:
+        self.model = None
+        self.runtime = None
+    
+    def get_schedule(self):
+        """
+        returns the schedule from the gurobi model solution.
+        """
+        pass
+
+    def get_probability(self):
+        """
+        returns the probability of success from the gurobi model solution.
+        """
+        pass
 
 class pstn_optimisation(object):
     """
     Description:    Class representing Probabilistic Temporal Network (or Correlated Temporal Network) SC as an optimisation problem of the form {min phi(z) | z <= Tx + q, Ax <= b} 
-    Parameters:
-                A:              numpy m x n matrix of coefficients
-                vars:           numpy n dimensional decision vector
-                b:              numpy m dimensional vector of RHS values
-                c:              numpy n dimensional vector of objective coefficients
-                T:              numpy p x n matrix of coefficients
-                q:              numpy p dimensional vector of RHS values
-                mean:           numpy p dimensional mean vector
-                cov:            numpy p x p dimensional covariance matrix
-                z:              numpy p x k matrix of current approximation points
-                phi:            numpy k dimensional vector of phi(z) = -log(F(z)) for approximation point (columns in z)
-                duals:          dictionary {"mu": numpy array, "nu": float} of dual variables for the
-                                current iteration. The dual variables are associated with the following constraints:
-                                mu: Z @ lambda - T @ x <= q, nu: 1^T @ lambda = 1
-                solved:         bool True if solution is optimal else False
-                solution:       dictionary {variable name: value,..,objective: objective value}
-                solution_time:  float time taken to reach solution
-                convergence_time List of tuples (time, gap) where time is current runtime and gap is (UB - LB)/UB     
-                master_time     List of tuples (time, obj) where time is current runtime and obj is current master problem objective
+    Parameters:     network - Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
+                    results - List of instances of optimisation_colution class for each iteration
 
     """
     def __init__(self, network: ProbabilisticTemporalNetwork, schedule = None) -> None:
         """
-        Parses the probablistic temporal network and populates the parameters.
-        Input:  ProbabilisticTemporalNetwork - the network to be parsed
-                Schedule = A valid schedule to use as an initial point. A dictionary of the form {TimepointID: scheduled_value}
+        Parses the probablistic temporal network and generates initial approximation points.
         """
         self.network = network
-        self.model = gp.Model("Optimisation")
         if isinstance(network, CorrelatedTemporalNetwork):
             correlated = True
         else:
             correlated = False
-        self.columns = []
-        self.function_evaluations = []
-
+        
         # If no schedule is provided, it finds an initial column
         initial = gp.Model("initiialisation")
+        self.results = None
 
         # Adds Variable for timepoints
         x = initial.addMVar(len(self.network.time_points), name=[str(t.id) for t in self.network.time_points])
@@ -91,16 +92,11 @@ class pstn_optimisation(object):
         initial.update()
         initial.optimize()
 
-        # Adds initial column
-        zli = [-v.x for v in initial.getVars() if "_zl" in v.varName]
-        zui = [v.x for v in initial.getVars() if "_zu" in v.varName]
-        zui.extend(zli)
-        self.columns.append(zui)
-        
-        # Initialises probability as 1
-        probability = 1
+        # Adds initial approximation points
         if correlated == True:
             for correlation in self.network.correlations:
+                # Initialises the inner approximation for each correlation
+                correlation.approximation = {"points": [], "evaluation": []}
                 # From the solution extracts the lower and upper bounds.
                 l, u = [], []
                 for constraint in correlation.constraints:
@@ -108,31 +104,38 @@ class pstn_optimisation(object):
                     ui = initial.getVarByName(constraint.get_description() + "_zu").x
                     l.append(li)
                     u.append(ui)
-                # Calculates probability for each correlation and multiplies the total probability by the value
+                correlation.approximation["points"].append((l, u))
+                # Calculates probability and saves the value of -log(F(z))
                 F = correlation.evaluate_probability(l, u)
-                probability *= F
+                correlation.approximation["evaluation"].append(-log(F))
             #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
             for constraint in self.network.get_independent_probabilistic_constraints():
+                # Initialises the inner approximation
+                constraint.approximation = {"points": [], "evaluation": []}
                 l = initial.getVarByName(constraint.get_description() + "_zl").x
                 u = initial.getVarByName(constraint.get_description() + "_zu").x
-                distribution = stats.norm(constraint.mean, constraint.sd)
-                # Calculates probability for each correlation and multiplies the total probability by the value
-                F = distribution.cdf(u) - distribution.cdf(l)
-                probability *= F
+                # Adds approximation point
+                constraint.approximation["points"].append((l, u))
+                # Calculates probability and adds funtion evaluation
+                F = constraint.evaluate_probability(l, u)
+                constraint.approximation["evaluation"].append(-log(F))
         else:
-            # If not a correlated temporal network, treat everything independently.
+            # If not a correlated temporal network, treat everything independently and repeat as above.
             for constraint in self.network.get_probabilistic_constraints():
+                constraint.approximation = {"points": [], "evaluation": []}
                 l = initial.getVarByName(constraint.get_description() + "_zl").x
                 u = initial.getVarByName(constraint.get_description() + "_zu").x
-                distribution = stats.norm(constraint.mean, constraint.sd)
-                # Calculates probability for each correlation and multiplies the total probability by the value
-                F = distribution.cdf(u) - distribution.cdf(l)
-                probability *= F
-        # Adds the value of -log
-        self.function_evaluations.append(-log(probability))
-                        
+                constraint.approximation["points"].append((l, u))
+                F = constraint.evaluate_probability(l, u)
+                constraint.approximation["evaluation"].append(-log(F))
 
+    def column_generation_lbfgsb(self):
+        pass
 
+    def optimise(self, max_iterations: int = 50, column_generation_solver: function = column_generation_lbfgsb()):
+        """
+        Finds schedule that optimises probability of success using column generation
+        """
 
     #     #Adds uncontrollable constraints
     #     # Gets matrices for joint chance constraint P(Psi omega <= T * vars + q) >= 1 - alpha

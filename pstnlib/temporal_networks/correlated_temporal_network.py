@@ -1,6 +1,6 @@
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlation import Correlation
-from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint
 import json
 import numpy as np
 
@@ -12,7 +12,6 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         super().__init__()
         self.correlations = []
     
-
     def parse_from_probabilistic_temporal_network(self, network: ProbabilisticTemporalNetwork):
         """
         makes a correlated temporal network from existing probabilistic temporal network.
@@ -23,10 +22,10 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         for constraint in network.constraints:
             source = self.get_timepoint_by_id(constraint.source.id)
             sink = self.get_timepoint_by_id(constraint.sink.id)
-            if constraint.distribution == None:
-                to_add = Constraint(source, sink, constraint.label[:], constraint.type[:], constraint.duration_bound.copy())
+            if constraint.type == "stc":
+                to_add = Constraint(source, sink, constraint.label[:], constraint.duration_bound.copy())
             else:
-                to_add = Constraint(source, sink, constraint.label[:], constraint.type[:], constraint.duration_bound.copy(), constraint.distribution.copy())
+                to_add = ProbabilisticConstraint(source, sink, constraint.label[:], constraint.distribution.copy())
             self.add_constraint(to_add)
     
     def parse_from_json(self, json_file):
