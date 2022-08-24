@@ -19,11 +19,13 @@ def generate_random_uncertainties(domain_file: str, problem_file: str) -> dict:
     actions = [a for a in domain.operators]
 
     # Randomly selects tils to be made probabilistic
-    no_to_be_randomised = random.randint(min(1, len(tils)), len(tils))
+    #no_to_be_randomised = random.randint(min(1, len(tils)), len(tils))
+    no_to_be_randomised = len(tils)
     random_tils = random.sample(tils, no_to_be_randomised)
 
     # Randomly selects actions to be made probabilistic
-    no_to_be_randomised = random.randint(min(1, len(actions)), len(actions))
+    #no_to_be_randomised = random.randint(min(1, len(actions)), len(actions))
+    no_to_be_randomised = len(actions)
     random_actions = random.sample(actions, no_to_be_randomised)
 
     # Randomly generates uncertainties. Uncertainties are added as a fraction of the duration  given in the plan.

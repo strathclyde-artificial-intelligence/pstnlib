@@ -25,6 +25,7 @@ class Correlation:
                 if i == j:
                     self.auxiliary[i, j] = constraints[i].sd
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
+        self.approximation = {"points": [], "evaluations": []}
 
     def __str__(self) -> None:
         """
@@ -79,3 +80,21 @@ class Correlation:
             P[i, k] = p
         self.correlation = np.transpose(P, (2, 0 ,1))[0]
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
+    
+    def evaluate_probability(self, l, u):
+        """
+        If correlation is an n dimensional random variable X, l and u are n dimensional vectors at which to avaluate the CDF:
+        returns P(l <= X <= u)
+        """
+        # Converts into form F(xi <= z), where z = [u, -l]^T.
+        omega = np.zeros((2 * len(self.constraints), len(self.constraints)))
+        for i in range(len(self.constraints)):
+            omega[i, i] = 1
+            omega[i + len(self.constraints), i] = -1
+
+        xi_mean = omega @ self.mean
+        xi_cov = omega @ self.covariance @ omega.transpose()
+        l = [-1 * i for i in l]
+        u.extend(l)
+        z = np.array(u)
+        return stats.multivariate_normal(xi_mean, xi_cov, allow_singular=True).cdf(z)

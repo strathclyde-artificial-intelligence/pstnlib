@@ -34,7 +34,7 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         This function parses a JSON file and returns an instance of the temporal_network class.
         """
         super().parse_from_json(json_file)
-        
+
         if json_file[-5:] != ".json":
             json_file = json_file + ".json"
 
@@ -52,8 +52,33 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
                 self.add_correlation(toAdd)
 
     def add_correlation(self, correlation: Correlation) -> None:
+        """
+        Adds an instance of correlation
+        """
         self.correlations.append(correlation)
     
+    def get_correlated_probabilistic_constraints(self) -> list[Constraint]:
+        """
+        returns list of all probabilistic constraints involved in a correlation
+        """
+        to_return = []
+        for correlation in self.correlations:
+            for constraint in correlation.constraints:
+                if constraint not in to_return:
+                    to_return.append(constraint)
+        return to_return
+
+    def get_independent_probabilistic_constraints(self) -> list[Constraint]:
+        """
+        returns list of all probabilistic constraints not incvolved in a correlation
+        """
+        to_return = []
+        correlated = self.get_correlated_probabilistic_constraints()
+        for constraint in self.get_probabilistic_constraints():
+            if constraint not in correlated:
+                to_return.append(constraint)
+        return to_return
+
     def print_as_json(self):
         """
         print the graph in JSON format.

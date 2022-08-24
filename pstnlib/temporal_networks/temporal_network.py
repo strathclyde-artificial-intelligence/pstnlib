@@ -31,13 +31,13 @@ class TemporalNetwork:
                 if node1 == node2: continue
                 elif temporal_plan_network.edges[node1][node2] > 0:
                     # Constraint is an upper bound, adding edge node1 -> node2
-                    edge = Constraint(self.get_timepoint_by_id(node1), self.get_timepoint_by_id(node2), temporal_plan_network.edge_labels[node1][node2], "stc", {"lb": 0.01, "ub": temporal_plan_network.edges[node1][node2]})
+                    edge = Constraint(self.get_timepoint_by_id(node1), self.get_timepoint_by_id(node2), temporal_plan_network.edge_labels[node1][node2], {"lb": 0.01, "ub": temporal_plan_network.edges[node1][node2]})
                 elif temporal_plan_network.edges[node1][node2] < 0:
                     # Constraint is a lower bound, adding edge node2 -> node1
-                    edge = Constraint(self.get_timepoint_by_id(node2), self.get_timepoint_by_id(node1), temporal_plan_network.edge_labels[node1][node2],"stc", {"lb": -temporal_plan_network.edges[node1][node2], "ub": inf})
+                    edge = Constraint(self.get_timepoint_by_id(node2), self.get_timepoint_by_id(node1), temporal_plan_network.edge_labels[node1][node2], {"lb": -temporal_plan_network.edges[node1][node2], "ub": inf})
                 elif temporal_plan_network.edges[node1][node2] == 0:
                     # Constraint duration = 0, adding as a lower bound on edge node2 -> node1
-                    edge = Constraint(self.get_timepoint_by_id(node2), self.get_timepoint_by_id(node1), temporal_plan_network.edge_labels[node1][node2],"stc", {"lb": temporal_plan_network.edges[node1][node2], "ub": inf})
+                    edge = Constraint(self.get_timepoint_by_id(node2), self.get_timepoint_by_id(node1), temporal_plan_network.edge_labels[node1][node2], {"lb": temporal_plan_network.edges[node1][node2], "ub": inf})
                 self.add_constraint(edge)
     
     def parse_from_json(self, json_file):
@@ -252,6 +252,18 @@ class TemporalNetwork:
         """
         return [ij for ij in self.constraints if ij.sink == constraint.source]
     
+    def get_outgoing_edge_from_timepoint(self, timepoint: TimePoint) -> list[Constraint]:
+        """
+        given a time-point i, returns a list of all outgoing edges (i, j)
+        """
+        return [ij for ij in self.constraints if ij.source == timepoint]
+
+    def get_incoming_edge_from_timepoint(self, timepoint: TimePoint) -> list[Constraint]:
+        """
+        given a time-point j, returns a list of all incoming edges (i, j)
+        """
+        return [ij for ij in self.constraints if ij.sink == timepoint]
+
     def get_constraint_by_timepoint(self, source: TimePoint, sink: TimePoint) -> Constraint:
         """
         given two time-points, i and j, if a constraint exists between the two it returns the constraint, else raises exception 

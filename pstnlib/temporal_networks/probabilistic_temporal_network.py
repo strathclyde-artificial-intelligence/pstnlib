@@ -1,6 +1,6 @@
 
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
-from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint
 from pstnlib.temporal_networks.timepoint import TimePoint
 import subprocess
 from graphviz import Digraph
@@ -47,11 +47,10 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
 
         for edge in edges:
             source, sink = self.get_timepoint_by_id(edge["source"]), self.get_timepoint_by_id(edge["sink"])
-            if "distribution" in edge:
-                distribution = edge["distribution"]
-            else:
-                distribution = None
-            to_add = Constraint(source, sink, edge["label"], edge["type"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]}, distribution)
+            if edge["type"] == "stc":
+                to_add = Constraint(source, sink, edge["label"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]})
+            elif edge["type"] == "pstc":
+                to_add = ProbabilisticConstraint(source, sink, edge["label"], {"mean": edge["distribution"]["mean"], "sd": edge["distribution"]["sd"]})
             self.add_constraint(to_add)
 
     
@@ -70,7 +69,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
             for constraint in self.constraints:
                 if action["name"] in constraint.label:
                     if constraint.type == "stc":
-                        assert constraint.ub == constraint.lb
+                        
                         constraint.distribution = {"mean": constraint.ub * action["mean_fraction"], "sd": constraint.ub * action["sd_fraction"]}
                         constraint.duration_bound["lb"], constraint.duration_bound["ub"] = 0, inf
                         constraint.type = "pstc"
@@ -166,27 +165,18 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
     def get_controllable_constraints(self) -> list[Constraint]:
         self.set_controllability_of_time_points()
         return [i for i in self.get_requirement_constraints() if i.source.controllable == True and i.sink.controllable == True]
-    
-    def incoming_probabilistic(self, constraint: Constraint) -> dict[str, Constraint]:
+
+    def get_outgoing_uncontrollable_edge_from_timepoint(self, timepoint: TimePoint) -> list[Constraint]:
         """
-        returns a dictionary of the incoming probabilistic constraint in the form {"start": Constraint, "end": Constraint}
-        raises an exception if the number of incoming probabilistic constraints is greater than one
+        given a time-point i, returns a list of all outgoing edges (i, j)
         """
-        if constraint not in self.get_uncontrollable_constraints():
-            return None
-        else:
-            incoming_source = [g for g in self.getContingents() if g.sink == constraint.source]
-            incoming_sink = [g for g in self.getContingents() if g.sink == constraint.sink]
-            if len(incoming_source) > 1 or len(incoming_sink) > 1:
-                raise AttributeError("More than one incoming probabilistic edge.")
-            else:
-                try:
-                    return {"start": incoming_source[0], "end": incoming_sink[0]}
-                except IndexError:
-                    try:
-                        return {"start": incoming_source[0], "end": None}
-                    except IndexError:
-                        return {"start": None, "end": incoming_sink[0]}
+        return [ij for ij in self.constraints if ij.source == timepoint and ij.type == "stc"]
+
+    def get_incoming_uncontrollable_edge_from_timepoint(self, timepoint: TimePoint) -> list[Constraint]:
+        """
+        given a time-point j, returns a list of all incoming edges (i, j)
+        """
+        return [ij for ij in self.constraints if ij.sink == timepoint and ij.type == "stc"]
     
     def plot_dot_graph(self):
         """
@@ -207,3 +197,4 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
             plot.render('logs/{}.png'.format(self.name), view=True)
         except subprocess.CalledProcessError:
             print("Please close the PDF and rerun the script")
+
