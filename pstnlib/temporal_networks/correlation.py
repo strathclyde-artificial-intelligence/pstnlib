@@ -99,3 +99,35 @@ class Correlation:
         us = np.array(u)
         z = np.concatenate([us, ls])
         return stats.multivariate_normal(xi_mean, xi_cov, allow_singular=True).cdf(z)
+
+    def get_columns(self):
+        """
+        Returns matrix of columns representing generated points so far.
+        """
+        if self.approximation == None:
+            raise AttributeError("No appoximation points to generate columns")
+        else:
+            l = self.approximation["points"][0][0]
+            u = self.approximation["points"][0][1]
+            # Makes into column vector
+            l = np.c_[l]
+            u = np.c_[u]
+            if len(self.approximation["points"]) > 1:
+                for i in range(1,len(self.approximation["points"])):
+                    point = self.approximation["points"][i]
+                    l_new, u_new = np.c_[np.array(point[0])], np.c_[np.array(point[1])]
+                    l = np.hstack((l, l_new))
+                    u = np.hstack((u, u_new))
+        return (l, u)
+
+    def get_description(self) -> str:
+        """
+        returns a string of the from c(source.id, sink.id)
+        """
+        to_return = "Corr("
+        for constraint in self.constraints:
+            to_add = "({},{}),".format(constraint.source.id, constraint.sink.id)
+            to_return += to_add
+        to_return = to_return[:-1]
+        to_return += ")"
+        return to_return

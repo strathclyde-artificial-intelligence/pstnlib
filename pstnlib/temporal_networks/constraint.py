@@ -2,6 +2,7 @@ from ast import Dict
 import copy
 from pstnlib.temporal_networks.timepoint import TimePoint
 from scipy import stats
+import numpy as np
 inf = 1000000000
 
 class Constraint:
@@ -84,7 +85,7 @@ class ProbabilisticConstraint(Constraint):
     def evaluate_probability(self, l, u):
         distribution = stats.norm(self.mean, self.sd)
         return distribution.cdf(u) - distribution.cdf(l)
-
+                
     @property
     def mean(self):
         return self.distribution["mean"]

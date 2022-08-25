@@ -17,16 +17,10 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         makes a correlated temporal network from existing probabilistic temporal network.
         """
         for node in network.time_points:
-            self.add_time_point(node.copy())
+            self.add_time_point(node)
 
         for constraint in network.constraints:
-            source = self.get_timepoint_by_id(constraint.source.id)
-            sink = self.get_timepoint_by_id(constraint.sink.id)
-            if constraint.type == "stc":
-                to_add = Constraint(source, sink, constraint.label[:], constraint.duration_bound.copy())
-            else:
-                to_add = ProbabilisticConstraint(source, sink, constraint.label[:], constraint.distribution.copy())
-            self.add_constraint(to_add)
+            self.add_constraint(constraint)
     
     def parse_from_json(self, json_file):
         """

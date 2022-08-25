@@ -71,10 +71,10 @@ cpstn2.save_as_json("junk/cpstn2")
 for constraint in cpstn.get_probabilistic_constraints():
     incoming = cpstn.get_incoming_edge_from_timepoint(constraint.sink)
     outgoing = cpstn.get_outgoing_edge_from_timepoint(constraint.sink)
-    
+
 # Optimises
 op = pstn_optimisation(cpstn)
-
+op.optimise()
 
 # # #Find strongly controllable schedule
 # result = paris(pstn)
