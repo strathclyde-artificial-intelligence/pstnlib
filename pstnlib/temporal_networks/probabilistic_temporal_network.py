@@ -103,9 +103,9 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
             if existing.type == "stc" and constraint.type == "stc":
                 # Checks whether the new constraint has a tighter bound
                 if constraint.ub < existing.ub:
-                    existing.ub = constraint.ub
+                    existing.duration_bound["ub"] = constraint.ub
                 elif constraint.lb > existing.lb:
-                    existing.lb = constraint.lb
+                    existing.duration_bound["lb"] = constraint.lb
             elif existing.type == "stc" and constraint.type == "pstc":
                 # Replaces the constraint with probabilistic version.
                 existing_index = self.constraints.index(existing)
@@ -118,9 +118,9 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         elif existing.sink == constraint.source:
             if existing.type == "stc" and constraint.type == "stc":
                 if -constraint.lb < existing.ub:
-                    existing.ub = -constraint.lb
+                    existing.duration_bound["ub"] = -constraint.lb
                 if -constraint.ub > existing.lb:
-                    existing.lb = -constraint.ub
+                    existing.duration_bound["lb"] = -constraint.ub
             elif existing.type == "stc" and constraint.type == "pstc":
                 # Replaces the constraint with probabilistic version.
                 existing_index = self.constraints.index(existing)

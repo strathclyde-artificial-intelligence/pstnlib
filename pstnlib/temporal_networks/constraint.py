@@ -9,7 +9,7 @@ class Constraint:
     """
     represents a temporal network constraint (edge in the network)
     """
-    def __init__(self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict[str, str], distribution: dict[str, str] = None):
+    def __init__(self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict[str, str]):
         self.source = source
         self.sink = sink
         self.label = label

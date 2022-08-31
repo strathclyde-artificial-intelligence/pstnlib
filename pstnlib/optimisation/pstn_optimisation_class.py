@@ -12,7 +12,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from scipy import optimize
 inf = 1000000000
-
+eps = 1e-5
 class OptimisationSolution(object):
     """
     Description:    Class representing a solution to the restricted master problem on a given iteration.
@@ -60,10 +60,6 @@ class PstnOptimisation(object):
         if self.correlated == False:
             self.sub_problems = self.network.get_probabilistic_constraints()
         elif self.correlated == True:
-            # print([c.get_description() for c in self.network.correlations])
-            # print("\n")
-            # print([c.get_description() for c in self.network.get_independent_probabilistic_constraints()])
-            # print("\n")
             self.sub_problems = self.network.get_independent_probabilistic_constraints() + self.network.correlations
 
         # Adds Variable for timepoints
@@ -86,8 +82,9 @@ class PstnOptimisation(object):
         cp = self.network.get_probabilistic_constraints()
         for c in cp:
             # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
-            l = initial.addVar(name = c.get_description() + "_zl", lb = max(0.00001, c.mean - 6 * c.sd))
+            l = initial.addVar(name = c.get_description() + "_zl", lb = max(eps, c.mean - 6 * c.sd))
             u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
+            initial.addConstr(l + eps <= u, name = c.get_description() + "l_u")
             initial.update()
             # Gets all uncontrollable constraints succeeding the probabilistic constraint.
             outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
@@ -107,7 +104,9 @@ class PstnOptimisation(object):
         initial.addConstr(x[0] == 0)
         initial.setObjective(sum([v for v in initial.getVars() if "_zu" in v.varName]) + sum([-v for v in initial.getVars() if "_zl" in v.varName]), GRB.MAXIMIZE)
         initial.update()
+        initial.write("junk/initial.lp")
         initial.optimize()
+        initial.write("junk/initial.sol")
 
         # Adds initial approximation points
         for c in self.sub_problems:
@@ -213,19 +212,6 @@ class PstnOptimisation(object):
         m.update()
         m.write("junk/model.lp")
         m.optimize()
-
-        if m.status == GRB.OPTIMAL:
-            print('\n objective: ', m.objVal)
-            print('\n Vars:')
-            for v in m.getVars():
-                if "lam" in v.varName and v.x == 0:
-                    continue
-                else:
-                    print("Variable {}: ".format(v.varName) + str(v.x))
-            m.write("junk/model.sol")
-        else:
-            print("\nOptimisation failed")
-
         return m
 
     def column_generation_problem(self, to_approximate):
@@ -248,14 +234,19 @@ class PstnOptimisation(object):
             # Gets constraint for sum of lambdas.
             c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
             # Gets the dual values associated with each constraint.
-            dual_u = np.array([c.getAttr("Pi") for c in c_u])
-            dual_l = np.array([c.getAttr("Pi") for c in c_l])
-            dual_z = np.concatenate((dual_u, dual_l))
+            dual_u = np.array(sum([c.getAttr("Pi") for c in c_u]))
+            dual_l = -np.array(sum([c.getAttr("Pi") for c in c_l]))
+            dual_z = np.array([dual_u, dual_l])
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
             
-            # Makes initial vector z given initial l and u.
+            #################################################################
+            #   THIS SHOULD OPTIMISE GIVEN L AND U THEN CONVERT AT THE END  #
+            #################################################################
+           
+            # Makes initial vector z given initial l and u. 
             assert len(c_u) == len(c_l), "Should be same number of upper bound constraints and lower bound constraints."
-            no_of_constraints = len(c_u)
+
+            no_of_constraints = len(c_u) 
             uz0, lz0 = [], []
             for i in range(no_of_constraints):
                 uz0.append(u0)
@@ -277,10 +268,12 @@ class PstnOptimisation(object):
                     # Add to gurobi model.
                     constraints = c_u + c_l + [c_sum_lambda]
                     coefficients = np.append(z, 1)
-                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints))
+                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
                 return dual
             
             def gradf(z):
+                if to_approximate.get_description() == "c(7,8)":
+                    print("z", z)
                 n = len(z)
                 zu, zl = z[:n//2], z[n//2:]
                 assert np.all(zu == zu[0])
@@ -291,6 +284,8 @@ class PstnOptimisation(object):
                     dF[i] = distribution.pdf(u)
                     dF[n//2 + i] = -distribution.pdf(l)
                 F = distribution.cdf(u) - distribution.cdf(l)
+                if to_approximate.get_description() == "c(7,8)":
+                    print("grad", -dF/F - dual_z)
                 return -dF/F - dual_z
 
             # # Adds bounds to prevent variables being non-negative
@@ -362,7 +357,7 @@ class PstnOptimisation(object):
                     # Add to gurobi model.
                     constraints = c_u + c_l + [c_sum_lambda]
                     coefficients = np.append(z, 1)
-                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints))
+                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
                 return dual
             
             def gradf(z):
@@ -403,7 +398,7 @@ class PstnOptimisation(object):
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
 
-    def optimise(self, max_iterations: int = 50, tolerance = 1e-6):
+    def optimise(self, max_iterations: int = 2, tolerance = 1e-6):
         """
         Finds schedule that optimises probability of success using column generation
         """
@@ -425,8 +420,9 @@ class PstnOptimisation(object):
             no_iterations += 1
             # If not satisfied we can run the master problem with the new columns added
             self.model.update()
+            self.model.write("junk/model{}.lp".format(no_iterations))
             self.model.optimize()
-            self.model.write("junk/model{}.sol".format(k))
+            self.model.write("junk/model{}.sol".format(no_iterations))
             self.results.append(OptimisationSolution(self.model, time() - start))
 
             function_values = []
@@ -435,11 +431,27 @@ class PstnOptimisation(object):
                 f, status = self.column_generation_problem(sp)
                 function_values.append(f)
         
-        if all(i > -tolerance for i in function_values) == True:
+        if all(i > -tolerance for i in function_values) == True and self.model.status == GRB.OPTIMAL:
             print("Optimisation terminated sucessfully")
+            print('\n Objective: ', self.model.objVal)
+            print("Probability: ", exp(-self.model.objVal))
+            print('\n Vars:')
+            for v in self.model.getVars():
+                if "_lam_" in v.varName and v.x == 0:
+                    continue
+                else:
+                    print("Variable {}: ".format(v.varName) + str(v.x))
             return True
         else:
-            print("Maximum iterations reached")
+            print("\nOptimisation failed")
+            print('\n Objective: ', self.model.objVal)
+            print("Probability: ", exp(-self.model.objVal))
+            print('\n Vars:')
+            for v in self.model.getVars():
+                if "_lam_" in v.varName and v.x == 0:
+                    continue
+                else:
+                    print("Variable {}: ".format(v.varName) + str(v.x))
             return False
 
 

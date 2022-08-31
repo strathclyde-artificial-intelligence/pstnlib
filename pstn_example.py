@@ -5,13 +5,14 @@ from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemp
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.correlation import Correlation
+from pstnlib.temporal_networks.constraint import Constraint
 from pstnlib.optimisation.pstn_optimisation_class import PstnOptimisation
 from random_uncertainties import save_random_uncertainties
 import random
 
 domain = "temporal-planning-domains/rovers-metric-time-2006/domain.pddl"
-problem = "temporal-planning-domains/rovers-metric-time-2006/instances/instance-1.pddl"
-planfile = "temporal-planning-domains/rovers-metric-time-2006/plans/rovers_instance-1_plan.pddl"
+problem = "temporal-planning-domains/rovers-metric-time-2006/instances/instance-2.pddl"
+planfile = "temporal-planning-domains/rovers-metric-time-2006/plans/rovers_instance-2_plan.pddl"
 
 # parse PDDL domain and problem files.
 print("Parsing PDDL domain and problem file...")
@@ -26,18 +27,24 @@ plan.read_from_file(planfile)
 # parses simple temporal network and makes instance of temporal network
 network = TemporalNetwork()
 network.parse_from_temporal_plan_network(plan.temporal_network)
-network.name = "rovers_instance-1_stn"
+
+# Adds a deadline to modify solvability
+deadline = 44
+start_id = min([i.id for i in network.time_points])
+end_id = max([i.id for i in network.time_points])
+network.add_constraint(Constraint(network.get_timepoint_by_id(start_id), network.get_timepoint_by_id(end_id), "Overall deadline", {"lb": 0, "ub": deadline}))
+network.name = "rovers_instance-2_stn"
 network.plot_dot_graph()
 
 # # Generates random uncertainties from domain and problem and saves to folder
-uncertainties = "temporal-planning-domains/rovers-metric-time-2006/uncertainties/rovers_instance-1_uncertainties_1.json"
+uncertainties = "temporal-planning-domains/rovers-metric-time-2006/uncertainties/rovers_instance-2_uncertainties_1.json"
 save_random_uncertainties(domain, problem, uncertainties)
 
 # makes pstn, reads uncertainties from json and saves pstn as json
 pstn = ProbabilisticTemporalNetwork()
 pstn.parse_from_temporal_network(network)
 pstn.parse_uncertainties_from_json(uncertainties)
-pstn.name = "rovers_instance_1_pstn"
+pstn.name = "rovers_instance_2_pstn"
 pstn.plot_dot_graph()
 pstn.save_as_json("junk/test.json")
 
@@ -75,12 +82,3 @@ for constraint in cpstn.get_probabilistic_constraints():
 # Optimises
 op = PstnOptimisation(cpstn)
 op.optimise()
-
-# # #Find strongly controllable schedule
-# result = paris(pstn)
-
-#plan.temporal_network.save_as_json("test")
-
-# print("Plan is temporally consistent:", plan.temporal_network.floyd_warshall())
-# plan.temporal_network.make_minimal()
-# plan.temporal_network.print_dot_graph()
