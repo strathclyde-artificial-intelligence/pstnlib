@@ -5,7 +5,7 @@ from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemp
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.correlation import Correlation
-from pstnlib.optimisation.pstn_optimisation_class import pstn_optimisation
+from pstnlib.optimisation.pstn_optimisation_class import PstnOptimisation
 from random_uncertainties import save_random_uncertainties
 import random
 
@@ -44,7 +44,7 @@ pstn.save_as_json("junk/test.json")
 # loads the saved pstn from json
 pstn2 = ProbabilisticTemporalNetwork()
 pstn2.parse_from_json("junk/test.json")
-pstn2.name = "rovers_instance_1_pstn_copy"
+pstn2.name = "rovers_instance_2_pstn_copy"
 pstn2.plot_dot_graph()
 
 # Gets random probabilistic constraints to add correlation between
@@ -73,7 +73,7 @@ for constraint in cpstn.get_probabilistic_constraints():
     outgoing = cpstn.get_outgoing_edge_from_timepoint(constraint.sink)
 
 # Optimises
-op = pstn_optimisation(cpstn)
+op = PstnOptimisation(cpstn)
 op.optimise()
 
 # # #Find strongly controllable schedule

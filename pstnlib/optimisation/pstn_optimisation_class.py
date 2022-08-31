@@ -10,6 +10,8 @@ from pstnlib.temporal_networks.probabilistic_temporal_network import Probabilist
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 import gurobipy as gp
 from gurobipy import GRB
+from scipy import optimize
+inf = 1000000000
 
 class OptimisationSolution(object):
     """
@@ -84,7 +86,7 @@ class PstnOptimisation(object):
         cp = self.network.get_probabilistic_constraints()
         for c in cp:
             # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
-            l = initial.addVar(name = c.get_description() + "_zl", lb = c.mean - 6 * c.sd)
+            l = initial.addVar(name = c.get_description() + "_zl", lb = max(0.00001, c.mean - 6 * c.sd))
             u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
             initial.update()
             # Gets all uncontrollable constraints succeeding the probabilistic constraint.
@@ -199,13 +201,13 @@ class PstnOptimisation(object):
                     for co in outgoing:
                         source, sink = c.constraints[n].source, co.sink
                         i, j = tc.index(source), tc.index(sink)
-                        m.addConstr(gp.quicksum([u[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(u))]) <= x[j] - x[i] - co.lb,  name = c.get_description() + "_" + co.get_description() + "_ub")
-                        m.addConstr(gp.quicksum([-l[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(l))]) <= x[i] - x[j] + co.ub, name = c.get_description() + "_" + co.get_description() + "_lb")
+                        m.addConstr(gp.quicksum([u[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(u))]) <= x[j] - x[i] - co.lb,  name = c.get_description() + "_" + c.constraints[n].get_description() + "_" + co.get_description() + "_ub")
+                        m.addConstr(gp.quicksum([-l[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(l))]) <= x[i] - x[j] + co.ub, name = c.get_description() + "_" + c.constraints[n].get_description() + "_" + co.get_description() + "_lb")
                     for ci in incoming:
                         source, sink = ci.source, c.constraints[n].source
                         i, j = tc.index(source), tc.index(sink)
-                        m.addConstr(gp.quicksum([u[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(u))]) <= x[i] - x[j] + ci.ub, name = c.get_description() + "_" + ci.get_description() + "_ub")
-                        m.addConstr(gp.quicksum([-l[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(l))]) <= x[j] - x[i] - ci.lb, name = c.get_description() + "_" + ci.get_description() + "_lb")
+                        m.addConstr(gp.quicksum([u[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(u))]) <= x[i] - x[j] + ci.ub, name = c.get_description() + "_" + c.constraints[n].get_description() + "_" + ci.get_description() + "_ub")
+                        m.addConstr(gp.quicksum([-l[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(l))]) <= x[j] - x[i] - ci.lb, name = c.get_description() + "_" + c.constraints[n].get_description() + "_" + ci.get_description() + "_lb")
         # Constrains initial time-point to be zero
         m.addConstr(x[0] == 0)
         m.update()
@@ -228,14 +230,165 @@ class PstnOptimisation(object):
 
     def restricted_master_problem(self):
         pass
+
     def column_generation_problem(self, to_approximate):
         """
         Takes an instance of either probabilistic constraint or correlation and optimises reduced cost
         to find improving column
         """
-        pass
+        if isinstance(to_approximate, ProbabilisticConstraint):
+            print("\n", to_approximate.get_description())
+            distribution = stats.norm(to_approximate.mean, to_approximate.sd)
+            # Gets starting point from current solution.
+            points = to_approximate.approximation["points"]
+            l, u = [p[0] for p in points], [p[1] for p in points]
+            u0 = sum([u[k] * self.model.getVarByName(to_approximate.get_description() + "_lam_{}".format(k)).x for k in range(len(u))])
+            l0 = sum([l[k] * self.model.getVarByName(to_approximate.get_description() + "_lam_{}".format(k)).x for k in range(len(l))])
 
-    def optimise(self, max_iterations: int = 50):
+            # Gets a list of constraints which use lower and upper bound of the probabilistic constraint
+            c_u = [c for c in self.model.getConstrs() if to_approximate.get_description() in c.getAttr("ConstrName") and "_ub" in c.getAttr("ConstrName")]
+            c_l = [c for c in self.model.getConstrs() if to_approximate.get_description() in c.getAttr("ConstrName") and "_lb" in c.getAttr("ConstrName")]
+            # Gets constraint for sum of lambdas.
+            c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
+            # Gets the dual values associated with each constraint.
+            dual_u = np.array([c.getAttr("Pi") for c in c_u])
+            dual_l = np.array([c.getAttr("Pi") for c in c_l])
+            dual_z = np.concatenate((dual_u, dual_l))
+            dual_sum_lambda = c_sum_lambda.getAttr("Pi")
+            
+            # Makes initial vector z given initial l and u.
+            assert len(c_u) == len(c_l), "Should be same number of upper bound constraints and lower bound constraints."
+            no_of_constraints = len(c_u)
+            uz0, lz0 = [], []
+            for i in range(no_of_constraints):
+                uz0.append(u0)
+                lz0.append(-l0)
+            z0 = np.concatenate((np.array(uz0), np.array(lz0)))
+
+            def dualf(z):
+                n = len(z)
+                zu, zl = z[:n//2], z[n//2:]
+                assert np.all(zu == zu[0])
+                assert np.all(zl == zl[0])
+                u, l = zu[0], -zl[0]
+                phi = -log(distribution.cdf(u) - distribution.cdf(l))
+                return phi - np.dot(z, dual_z) - dual_sum_lambda
+            
+            def gradf(z):
+                n = len(z)
+                zu, zl = z[:n//2], z[n//2:]
+                assert np.all(zu == zu[0])
+                assert np.all(zl == zl[0])
+                u, l = zu[0], -zl[0]
+                dF = np.zeros(n)
+                for i in range(n//2):
+                    dF[i] = distribution.pdf(u)
+                    dF[n//2 + i] = -distribution.pdf(l)
+                F = distribution.cdf(u) - distribution.cdf(l)
+                return -dF/F - dual_z
+
+            # # Adds bounds to prevent variables being non-negative
+            bounds = []
+            for i in range(len(z0)):
+                bound = (0.00001, inf)
+                bounds.append(bound)
+
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds)
+            z = res.x
+            f = res.fun
+            status = res.success
+            return z, f, status
+
+        elif isinstance(to_approximate, Correlation):
+            print("\n", to_approximate.get_description())
+            distribution = stats.multivariate_normal(to_approximate.mean, to_approximate.covariance)
+            # Gets starting point from current solution.
+            points = to_approximate.approximation["points"]
+            l, u = [p[0] for p in points], [p[1] for p in points]
+            u0 = np.zeros(len(u[0]))
+            l0 = np.zeros(len(u[0]))
+            assert len(u0) == len(l0)
+            for k in range(len(u)):
+                u0 += np.array([u[k][i] * self.model.getVarByName(to_approximate.get_description() + "_lam_{}".format(k)).x for i in range(len(u[k]))])
+                l0 += np.array([l[k][i] * self.model.getVarByName(to_approximate.get_description() + "_lam_{}".format(k)).x for i in range(len(l[k]))])
+
+            # Gets a list of constraints which use lower and upper bound of the probabilistic constraint
+            c_u = [c for c in self.model.getConstrs() if to_approximate.get_description() in c.getAttr("ConstrName") and "_ub" in c.getAttr("ConstrName")]
+            c_l = [c for c in self.model.getConstrs() if to_approximate.get_description() in c.getAttr("ConstrName") and "_lb" in c.getAttr("ConstrName")]
+
+            # Gets constraint for sum of lambdas.
+            c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
+            # Gets the dual values associated with each constraint.
+            dual_u = np.array([c.getAttr("Pi") for c in c_u])
+            dual_l = np.array([c.getAttr("Pi") for c in c_l])
+            dual_z = np.concatenate((dual_u, dual_l))
+            dual_sum_lambda = c_sum_lambda.getAttr("Pi")
+
+            # Makes initial vector z given initial l and u.
+            z0 = np.zeros(2 * len(c_u))
+            indexes = np.zeros(len(c_u))
+            for i in range(len(c_u)):
+                probabilistic = c_u[i].getAttr("ConstrName").split("_")[1]
+                for j in range(len(to_approximate.constraints)):
+                    if to_approximate.constraints[j].get_description() == probabilistic:
+                        z0[i] = u0[j]
+                        z0[i + len(c_u)] = -l0[j]
+                        indexes[i] = j
+
+            def dualf(z):
+                n = len(z)
+                zu, zl = z[:n//2], z[n//2:]
+                # Since z can be in form z = [u1, u1, u2, -l1, -l1, -l2], we must extract in form l = [l1, l2] and u = [u1, u2]
+                # Variable indexes relates the position in vector zu and zl to the index of constraint i in correlation.contraints.
+                u, l = np.zeros(len(to_approximate.constraints)), np.zeros(len(to_approximate.constraints))
+                for i in range(len(to_approximate.constraints)):
+                    for j in range(len(indexes)):
+                        if indexes[j] == i:
+                            u[i] = zu[j]
+                            l[i] = -zl[j]
+                            break
+                phi = -log(to_approximate.evaluate_probability(l, u))
+                return phi - np.dot(z, dual_z) - dual_sum_lambda
+            
+            def gradf(z):
+                n = len(z)
+                zu, zl = z[:n//2], z[n//2:]
+                # Since z can be in form z = [u1, u1, u2, -l1, -l1, -l2], we must extract in form l = [l1, l2] and u = [u1, u2]
+                # Variable indexes relates the position in vector zu and zl to the index of constraint i in correlation.contraints.
+                u, l = np.zeros(len(to_approximate.constraints)), np.zeros(len(to_approximate.constraints))
+                for i in range(len(to_approximate.constraints)):
+                    for j in range(len(indexes)):
+                        if indexes[j] == i:
+                            u[i] = zu[j]
+                            l[i] = -zl[j]
+                            break
+                dl, du = to_approximate.evaluate_gradient(l, u)
+                # As above but in reverse this adds the gradient into the vector at the appropriate position based on "indexes"
+                dF = np.zeros(n)
+                for i in range(len(to_approximate.constraints)):
+                    for j in range(len(indexes)):
+                        if indexes[j] == i:
+                            dF[j] = du[i]
+                            dF[j + n//2] = dl[i]
+                F = to_approximate.evaluate_probability(l, u)
+                return -dF/F - dual_z
+
+            # Adds bounds to prevent variables being non-negative
+            bounds = []
+            for i in range(len(z0)):
+                bound = (0.00001, inf)
+                bounds.append(bound)
+
+            # Finds the column z that minimizes the dual.
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds)
+            z = res.x
+            f = res.fun
+            status = res.success
+            return z, f, status
+        else:
+            raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
+
+    def optimise(self, max_iterations: int = 50, tolerance = 1e-6):
         """
         Finds schedule that optimises probability of success using column generation
         """
@@ -246,7 +399,32 @@ class PstnOptimisation(object):
         self.results.append(OptimisationSolution(model, time() - start))
         self.model = model
 
+        columns = {}
+        function_values = []
+        # Solves the column generation problem for each sub problem.
         for sp in self.sub_problems:
+            z, f, status = self.column_generation_problem(sp)
+            columns[sp.get_description()] = z
+            function_values.append(f)
+
+        # If all of the sub problems resulted in non-negative reduced cost we can terminate.
+        # We define an alowable tolerance on the reduced cost which we check against.
+        while all(i > -tolerance for i in function_values) == False:
+            # If not we add the columns and continue.
+            
+
+        
+
+
+
+
+        
+
+
+
+
+        
+
 
         # # Solves column generation problem for each subproblem.
         # for problem in subproblem:

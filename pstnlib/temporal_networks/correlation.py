@@ -1,5 +1,6 @@
 from typing import Dict
 from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.optimisation.probabilities import rectangular_probability
 import numpy as np
 from scipy import stats
 from math import sqrt
@@ -86,39 +87,26 @@ class Correlation:
         If correlation is an n dimensional random variable X, l and u are n dimensional vectors at which to avaluate the CDF:
         returns P(l <= X <= u)
         """
-        # Converts into form F(xi <= z), where z = [u, -l]^T.
-        omega = np.zeros((2 * len(self.constraints), len(self.constraints)))
-        for i in range(len(self.constraints)):
-            omega[i, i] = 1
-            omega[i + len(self.constraints), i] = -1
+        if type(l) == list and type(u) == list:
+            l, u = np.array(l), np.array(u)
+        return rectangular_probability(self.mean, self.covariance, l, u)
 
-        xi_mean = omega @ self.mean
-        xi_cov = omega @ self.covariance @ omega.transpose()
-
-        ls = np.array([-i for i in l])
-        us = np.array(u)
-        z = np.concatenate([us, ls])
-        return stats.multivariate_normal(xi_mean, xi_cov, allow_singular=True).cdf(z)
-
-    def get_columns(self):
-        """
-        Returns matrix of columns representing generated points so far.
-        """
-        if self.approximation == None:
-            raise AttributeError("No appoximation points to generate columns")
-        else:
-            l = self.approximation["points"][0][0]
-            u = self.approximation["points"][0][1]
-            # Makes into column vector
-            l = np.c_[l]
-            u = np.c_[u]
-            if len(self.approximation["points"]) > 1:
-                for i in range(1,len(self.approximation["points"])):
-                    point = self.approximation["points"][i]
-                    l_new, u_new = np.c_[np.array(point[0])], np.c_[np.array(point[1])]
-                    l = np.hstack((l, l_new))
-                    u = np.hstack((u, u_new))
-        return (l, u)
+    def evaluate_gradient(self, l, u):
+        '''
+        Calculates the gradient of the function F(u) - F(l).
+        '''
+        dl, du = [], []
+        for i in range(len(self.mean)):
+            bar_mean = np.delete(self.mean, i)
+            bar_cov = np.delete(np.delete(self.covariance, i, 0), i, 1)
+            bar_l = np.delete(l, i)
+            bar_u = np.delete(u, i)
+            bar_F = rectangular_probability(bar_mean, bar_cov, bar_l, bar_u)
+            fl = stats.norm(self.mean[i], self.covariance[i, i]).pdf(l[i])
+            fu = stats.norm(self.mean[i], self.covariance[i, i]).pdf(u[i])
+            dl.append(-fl * bar_F)
+            du.append(fu * bar_F)
+        return (np.array(dl), np.array(du))
 
     def get_description(self) -> str:
         """

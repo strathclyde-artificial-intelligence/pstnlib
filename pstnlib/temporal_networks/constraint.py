@@ -83,8 +83,18 @@ class ProbabilisticConstraint(Constraint):
         self.distribuion = distribution
     
     def evaluate_probability(self, l, u):
+        """
+        Calculates the probability F(u) - F(l), where F(z) is the cumulative probability function of the probabilistic constraint.
+        """
         distribution = stats.norm(self.mean, self.sd)
         return distribution.cdf(u) - distribution.cdf(l)
+
+    def evaluate_gradient(self, l, u):
+        '''
+        Calculates the gradient of the function F(u) - F(l).
+        '''
+        distribution = stats.norm(self.mean, self.sd)
+        return (-distribution.pdf(l), distribution.pdf(u))
                 
     @property
     def mean(self):

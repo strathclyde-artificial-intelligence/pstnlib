@@ -39,6 +39,14 @@ class TemporalNetwork:
                     # Constraint duration = 0, adding as a lower bound on edge node2 -> node1
                     edge = Constraint(self.get_timepoint_by_id(node2), self.get_timepoint_by_id(node1), temporal_plan_network.edge_labels[node1][node2], {"lb": temporal_plan_network.edges[node1][node2], "ub": inf})
                 self.add_constraint(edge)
+
+        # If node is at the end of the network, manually adds an [0, inf] edge between the start time-point and it.
+        start = self. get_timepoint_by_id(0)
+        for timepoint in self.time_points:
+            if not self.get_outgoing_edge_from_timepoint(timepoint):
+                print(timepoint)
+                self.add_constraint(Constraint(start, timepoint, "Deadline for Timepoint {}".format(timepoint.id), {"lb": 0, "ub": inf}))
+
     
     def parse_from_json(self, json_file):
         """
