@@ -54,7 +54,7 @@ class PstnOptimisation(object):
         
         # If no schedule is provided, it finds an initial column
         initial = gp.Model("initiialisation")
-        self.current_model = initial
+        self.model = initial
         self.results = []
 
         if self.correlated == False:
@@ -228,13 +228,10 @@ class PstnOptimisation(object):
 
         return m
 
-    def restricted_master_problem(self):
-        pass
-
     def column_generation_problem(self, to_approximate):
         """
         Takes an instance of either probabilistic constraint or correlation and optimises reduced cost
-        to find improving column
+        to find improving column. Adds all columns with negative reduced cost.
         """
         if isinstance(to_approximate, ProbabilisticConstraint):
             print("\n", to_approximate.get_description())
@@ -272,7 +269,16 @@ class PstnOptimisation(object):
                 assert np.all(zl == zl[0])
                 u, l = zu[0], -zl[0]
                 phi = -log(distribution.cdf(u) - distribution.cdf(l))
-                return phi - np.dot(z, dual_z) - dual_sum_lambda
+                dual = phi - np.dot(z, dual_z) - dual_sum_lambda
+                # If reduced cost is less than zero we can add the column.
+                if dual <= 0:
+                    to_approximate.approximation["points"].append((l, u))
+                    to_approximate.approximation["evaluation"].append(phi)
+                    # Add to gurobi model.
+                    constraints = c_u + c_l + [c_sum_lambda]
+                    coefficients = np.append(z, 1)
+                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints))
+                return dual
             
             def gradf(z):
                 n = len(z)
@@ -297,7 +303,7 @@ class PstnOptimisation(object):
             z = res.x
             f = res.fun
             status = res.success
-            return z, f, status
+            return f, status
 
         elif isinstance(to_approximate, Correlation):
             print("\n", to_approximate.get_description())
@@ -348,7 +354,16 @@ class PstnOptimisation(object):
                             l[i] = -zl[j]
                             break
                 phi = -log(to_approximate.evaluate_probability(l, u))
-                return phi - np.dot(z, dual_z) - dual_sum_lambda
+                dual = phi - np.dot(z, dual_z) - dual_sum_lambda
+                # If reduced cost is less than zero we can add the column.
+                if dual <= 0:
+                    to_approximate.approximation["points"].append((l, u))
+                    to_approximate.approximation["evaluation"].append(phi)
+                    # Add to gurobi model.
+                    constraints = c_u + c_l + [c_sum_lambda]
+                    coefficients = np.append(z, 1)
+                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints))
+                return dual
             
             def gradf(z):
                 n = len(z)
@@ -384,7 +399,7 @@ class PstnOptimisation(object):
             z = res.x
             f = res.fun
             status = res.success
-            return z, f, status
+            return f, status
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
 
@@ -393,245 +408,39 @@ class PstnOptimisation(object):
         Finds schedule that optimises probability of success using column generation
         """
         start = time()
-        no_iterations = 0
         # Solves restricted master problem using initial points and saves solution. 
-        model = self.build_initial_model()
-        self.results.append(OptimisationSolution(model, time() - start))
-        self.model = model
+        self.model = self.build_initial_model()
+        self.results.append(OptimisationSolution(self.model, time() - start))
+        no_iterations = 1
 
-        columns = {}
         function_values = []
         # Solves the column generation problem for each sub problem.
         for sp in self.sub_problems:
-            z, f, status = self.column_generation_problem(sp)
-            columns[sp.get_description()] = z
+            f, status = self.column_generation_problem(sp)
             function_values.append(f)
 
         # If all of the sub problems resulted in non-negative reduced cost we can terminate.
         # We define an alowable tolerance on the reduced cost which we check against.
-        while all(i > -tolerance for i in function_values) == False:
-            # If not we add the columns and continue.
-            
+        while all(i > -tolerance for i in function_values) == False and no_iterations < max_iterations:
+            no_iterations += 1
+            # If not satisfied we can run the master problem with the new columns added
+            self.model.update()
+            self.model.optimize()
+            self.model.write("junk/model{}.sol".format(k))
+            self.results.append(OptimisationSolution(self.model, time() - start))
 
+            function_values = []
+            # Solves the column generation problem for each sub problem.
+            for sp in self.sub_problems:
+                f, status = self.column_generation_problem(sp)
+                function_values.append(f)
         
-
-
-
-
-        
-
-
-
-
-        
-
-
-        # # Solves column generation problem for each subproblem.
-        # for problem in subproblem:
-        #     do self.column_generation():
-    #     #Adds uncontrollable constraints
-    #     # Gets matrices for joint chance constraint P(Psi omega <= T * vars + q) >= 1 - alpha
-    #     for i in range(len(cu)):
-    #         incoming = PSTN.incomingContingent(cu[i])
-    #         if incoming["start"] != None:
-    #             incoming = incoming["start"]
-    #             start_i, end_i = vars.index(incoming.source.id), vars.index(cu[i].sink.id)
-    #             T[ub, start_i], T[ub, end_i] = 1, -1
-    #             T[lb, start_i], T[lb, end_i] = -1, 1
-    #             q[ub] = cu[i].intervals["ub"]
-    #             q[lb] = -cu[i].intervals["lb"]
-    #             rvar_i = rvars.index("X" + "_" + incoming.source.id + "_" + incoming.sink.id)
-    #             psi[ub, rvar_i] = -1
-    #             psi[lb, rvar_i] = 1
-    #             mu_X[rvar_i] = incoming.mu
-    #             D[rvar_i][rvar_i] = incoming.sigma
-    #         elif incoming["end"] != None:
-    #             incoming = incoming["end"]
-    #             start_i, end_i = vars.index(cu[i].source.id), vars.index(incoming.source.id)
-    #             T[ub, start_i], T[ub, end_i] = 1, -1
-    #             T[lb, start_i], T[lb, end_i] = -1, 1
-    #             q[ub] = cu[i].intervals["ub"]
-    #             q[lb] = -cu[i].intervals["lb"]
-    #             rvar_i = rvars.index("X" + "_" + incoming.source.id + "_" + incoming.sink.id)
-    #             psi[ub, rvar_i] = 1
-    #             psi[lb, rvar_i] = -1
-    #             mu_X[rvar_i] = incoming.mu
-    #             D[rvar_i][rvar_i] = incoming.sigma
-    #         else:
-    #             raise AttributeError("Not an uncontrollable constraint since no incoming pstc")
-    #     # Gets covariance matrix from correlation matrix
-    #     cov_X = D @ corr @ np.transpose(D)
-
-    #     if correlated == False:
-    #         cp = self.network.get_probabilistic_constraints()
-    #         for c in cp:
-    #             # Adds a variable for the lower and upper bound on the cdf.
-    #             l, u = self.model.addVar(name = c.get_description() + "_l"), self.model.addVal(name = c.get_description() + "_u")
-    #             # Gets all uncontrollable constraints succeeding the probabilistic constraint.
-    #             outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
-    #             incoming = self.network.get_incoming_uncontrollable_edge_from_timepoint(c.sink)
-    #             # if constraint is the form l_ij <= bj - (b_i + X_i) <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-    #             for co in outgoing:
-    #                 source, sink = c.source, co.sink
-    #                 i, j = self.network.time_points.index(source), self.network.time_points.index(sink)
-    #                 self.model.addConstr(-l <= x[i] - x[j] + co.ub, name = co.get_description() + "lb")
-    #                 self.model.addConstr(u <= x[j] - x[i] - co.lb, name = co.get_description() + "ub")
-    #             # if constraint is the form l_ij <= (b_j + X_j) - b_i -  <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-    #             for ci in incoming:
-    #                 source, sink = ci.source, c.source
-    #                 i, j = self.network.time_points.index(source), self.network.time_points.index(sink)
-    #                 self.model.addConstr(-l <= x[j] - x[i] - ci.lb, name = ci.get_description() + "lb")
-    #                 self.model.addConstr(u <= x[i] - x[j] + ci.ub, name = ci.get_description() + "ub")
-                
-            
-    #     # Adds variable for time-points
-    #     x = self.model.addMVar(len(self.network.time_points), name=[str(t.id) for t in self.network.time_points])
-    # #     vars = [t.id for t in network.time_points]
-    # #     rvars = ["X_{}_{}".format(c.source.id, c.sink.id) for c in network.get_probabilistic_constraints()]
-    # #     cc = network.get_controllable_constraints
-    # #     cu = network.get_uncontrollable_constraints
-
-    # #     n = len(vars)
-    # #     m = 2 * len(cc)
-
-    # #     # Gets matrices for controllable constraints in the form Ax <= b
-    # #     self.A = np.zeros((m, n))
-    # #     self.b = np.zeros(m)
-    # #     for i in range(len(cc)):
-    # #         ub = 2 * i
-    # #         lb = ub + 1
-    # #         start_i, end_i = vars.index(cc[i].source.id), vars.index(cc[i].sink.id)
-    # #         self.A[ub, start_i], self.A[ub, end_i], self.b[ub] = -1, 1, cc[i].ub
-    # #         self.A[lb, start_i], self.A[lb, end_i], self.b[lb] = 1, -1, -cc[i].lb
-        
-    # #     # Gets the initial point from the schedule
-    # #     x0 = np.array([schedule[i] for i in vars])
-
-    # #     # For independent uncontrollable constraints:
-
-
-    # # #     # Gets matrices for joint chance constraint P(Psi omega <= T * vars + q) >= 1 - alpha
-    # # #     for i in range(len(cu)):
-    # # #         ub = 2 * i
-    # # #         lb = ub + 1
-    # # #         incoming = PSTN.incomingContingent(cu[i])
-    # # #         if incoming["start"] != None:
-    # # #             incoming = incoming["start"]
-    # # #             start_i, end_i = vars.index(incoming.source.id), vars.index(cu[i].sink.id)
-    # # #             T[ub, start_i], T[ub, end_i] = 1, -1
-    # # #             T[lb, start_i], T[lb, end_i] = -1, 1
-    # # #             q[ub] = cu[i].intervals["ub"]
-    # # #             q[lb] = -cu[i].intervals["lb"]
-    # # #             rvar_i = rvars.index("X" + "_" + incoming.source.id + "_" + incoming.sink.id)
-    # # #             psi[ub, rvar_i] = -1
-    # # #             psi[lb, rvar_i] = 1
-    # # #             mu_X[rvar_i] = incoming.mu
-    # # #             D[rvar_i][rvar_i] = incoming.sigma
-    # # #         elif incoming["end"] != None:
-    # # #             incoming = incoming["end"]
-    # # #             start_i, end_i = vars.index(cu[i].source.id), vars.index(incoming.source.id)
-    # # #             T[ub, start_i], T[ub, end_i] = 1, -1
-    # # #             T[lb, start_i], T[lb, end_i] = -1, 1
-    # # #             q[ub] = cu[i].intervals["ub"]
-    # # #             q[lb] = -cu[i].intervals["lb"]
-    # # #             rvar_i = rvars.index("X" + "_" + incoming.source.id + "_" + incoming.sink.id)
-    # # #             psi[ub, rvar_i] = 1
-    # # #             psi[lb, rvar_i] = -1
-    # # #             mu_X[rvar_i] = incoming.mu
-    # # #             D[rvar_i][rvar_i] = incoming.sigma
-    # # #         else:
-    # # #             raise AttributeError("Not an uncontrollable constraint since no incoming pstc")
-    # # #     # Gets covariance matrix from correlation matrix
-    # # #     cov_X = D @ corr @ np.transpose(D)
-
-    # # #     # Performs transformation of X into eta where eta = psi X such that eta is a p dimensional random variable
-    # # #     mu_eta = psi @ mu_X
-    # # #     cov_eta = psi @ cov_X @ np.transpose(psi)
-    # # #     # Adds regularization term to diagonals of covariance to prevent singularity
-    # # #     cov_eta = cov_eta + 1e-6*np.identity(p)
-    # # #     # Translates random vector eta into standard form xi = N(0, R) where R = D.eta.D^T
-    # # #     # D = np.zeros((p, p))
-    # # #     # for i in range(p):
-    # # #     #     D[i, i] = 1/sqrt(cov_eta[i, i])
-    # # #     # R = D @ cov_eta @ D.transpose()
-    # # #     # T = D @ T
-    # # #     # q = D @ (q - mu_eta)
-    # # #     # mu_xi = np.zeros((p))
-    # # #     # cov_xi = R
-    # # #     z0 = T @ x0 + q
-
-
-    # # # def __init__(self, A, vars, b, c, T, q, mean, cov, psi):
-    # # #     self.A = None
-    # # #     self.vars = None
-    # # #     self.b = None
-    # # #     self.c = None
-    # # #     self.T = None
-    # # #     self.q = None
-    # # #     self.mean = None
-    # # #     self.cov = None
-    # # #     self.psi = None
-    # # #     self.z = None
-    # # #     self.phi = None
-    # # #     self.duals = None
-    # # #     self.cbasis = None
-    # # #     self.solved = False
-    # # #     self.solution = None
-    # # #     self.solution_time = None
-    # # #     self.convergence_time = None
-    # # #     self.master_time = None
-    # # #     self.new_cols = None
-    # # #     self.new_phis = None
-
-    # # # def getDuals(self):
-    # # #     # Returns a copy of the dual variable dictionary
-    # # #     return copy.deepcopy(self.duals)
-    
-    # # # def getSolution(self):
-    # # #     return self.solution
-    
-    # # # def addColumn(self, z_k, phi_k):
-    # # #     # Adds a column z_k to matrix z and item phi_k to vector of phi values
-    # # #     #try:
-    # # #     self.z = np.hstack((self.z, z_k))
-    # # #     self.phi = np.append(self.phi, phi_k)
-    # # #     #except:
-    # # #      #   raise AttributeError("Matrix z and vector phi not yet initialised")
-    
-    # # # def calculatePhi(self, z):
-    # # #     # Calculates value of -log(F(z)) for a column z
-    # # #     return -log(prob(flatten(z), self.mean, self.cov))
-
-    # # # def reducedCost(self, z):
-    # # #     # Calculates reduced cost using current dual variables and column
-    # # #     return self.calculatePhi(z) - np.transpose(self.duals["mu"])@z - self.duals["nu"]
-    
-    # # # def setSolved(self, status):
-    # # #     self.status = status
-    
-    # # # # Takes a Gurobi model and adds a solution containing variable and objective values.
-    # # # def addSolution(self, model):
-    # # #     solution = {}
-    # # #     for v in model.getVars():
-    # # #         solution[v.varName] = v.x
-    # # #     solution["Objective"] = model.objVal
-    # # #     self.solution = solution
-    
-    # # # def setSolutionTime(self, time):
-    # # #     self.solution_time = time
-    
-    # # # def getCurrentProbability(self):
-    # # #     #print(self.solution.keys())
-    # # #     for key in self.solution.keys():
-    # # #         if "phi" in key:
-    # # #             return exp(-self.solution[key])
-    
-    # # # def add_convergence_time(self, time, gap):
-    # # #     self.convergence_time.append((time, gap))
-    
-    # # # def add_master_time(self, time, cost):
-    # # #     self.master_time.append((time, cost))
-    
+        if all(i > -tolerance for i in function_values) == True:
+            print("Optimisation terminated sucessfully")
+            return True
+        else:
+            print("Maximum iterations reached")
+            return False
 
 
     
