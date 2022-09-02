@@ -29,7 +29,7 @@ network = TemporalNetwork()
 network.parse_from_temporal_plan_network(plan.temporal_network)
 
 # Adds a deadline to modify solvability
-deadline = 44
+deadline = 35
 start_id = min([i.id for i in network.time_points])
 end_id = max([i.id for i in network.time_points])
 network.add_constraint(Constraint(network.get_timepoint_by_id(start_id), network.get_timepoint_by_id(end_id), "Overall deadline", {"lb": 0, "ub": deadline}))

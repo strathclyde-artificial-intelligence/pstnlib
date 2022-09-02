@@ -108,6 +108,18 @@ class Correlation:
             du.append(fu * bar_F)
         return (np.array(dl), np.array(du))
 
+    def add_approximation_point(self, l, u, phi):
+        """
+        If approximation point does not already exist in the approximation
+        we add it.
+        """
+        for point in self.approximation["points"]:
+            if (point[0]==l).all() and (point[1] == u).all():
+                return False
+        self.approximation["points"].append((l, u))
+        self.approximation["evaluation"].append(phi)
+        return True
+
     def get_description(self) -> str:
         """
         returns a string of the from c(source.id, sink.id)

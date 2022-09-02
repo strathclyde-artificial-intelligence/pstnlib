@@ -95,7 +95,19 @@ class ProbabilisticConstraint(Constraint):
         '''
         distribution = stats.norm(self.mean, self.sd)
         return (-distribution.pdf(l), distribution.pdf(u))
-                
+
+    def add_approximation_point(self, l, u, phi):
+        """
+        If approximation point does not already exist in the approximation
+        we add it.
+        """
+        for point in self.approximation["points"]:
+            if point[0] == l and point[1] == u:
+                return False
+        self.approximation["points"].append((l, u))
+        self.approximation["evaluation"].append(phi)
+        return True
+            
     @property
     def mean(self):
         return self.distribution["mean"]

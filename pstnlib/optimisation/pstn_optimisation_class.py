@@ -210,8 +210,9 @@ class PstnOptimisation(object):
         # Constrains initial time-point to be zero
         m.addConstr(x[0] == 0)
         m.update()
-        m.write("junk/model.lp")
+        m.write("junk/model1.lp")
         m.optimize()
+        m.write("junk/model1.sol")
         return m
 
     def column_generation_problem(self, to_approximate):
@@ -234,70 +235,57 @@ class PstnOptimisation(object):
             # Gets constraint for sum of lambdas.
             c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
             # Gets the dual values associated with each constraint.
-            dual_u = np.array(sum([c.getAttr("Pi") for c in c_u]))
-            dual_l = -np.array(sum([c.getAttr("Pi") for c in c_l]))
+            print([c.getAttr("constrName") for c in c_u])
+            print([c.getAttr("Pi") for c in c_u])
+            print("Sum lambda value", c_sum_lambda.getAttr("Pi"))
+            dual_u = sum([c.getAttr("Pi") for c in c_u])
+            dual_l = -sum([c.getAttr("Pi") for c in c_l])
             dual_z = np.array([dual_u, dual_l])
+            print(dual_z)
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
-            
-            #################################################################
-            #   THIS SHOULD OPTIMISE GIVEN L AND U THEN CONVERT AT THE END  #
-            #################################################################
            
             # Makes initial vector z given initial l and u. 
             assert len(c_u) == len(c_l), "Should be same number of upper bound constraints and lower bound constraints."
 
-            no_of_constraints = len(c_u) 
-            uz0, lz0 = [], []
-            for i in range(no_of_constraints):
-                uz0.append(u0)
-                lz0.append(-l0)
-            z0 = np.concatenate((np.array(uz0), np.array(lz0)))
-
+            z0 = np.array([u0, l0])
+            
             def dualf(z):
-                n = len(z)
-                zu, zl = z[:n//2], z[n//2:]
-                assert np.all(zu == zu[0])
-                assert np.all(zl == zl[0])
-                u, l = zu[0], -zl[0]
+                u, l = z[0], z[1]
+                print("\n")
+                print("u = : ", u)
+                print("l = : ", l)
+                print("F = : ", distribution.cdf(u) - distribution.cdf(l))
                 phi = -log(distribution.cdf(u) - distribution.cdf(l))
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0:
-                    to_approximate.approximation["points"].append((l, u))
-                    to_approximate.approximation["evaluation"].append(phi)
-                    # Add to gurobi model.
-                    constraints = c_u + c_l + [c_sum_lambda]
-                    coefficients = np.append(z, 1)
-                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
+                    toAdd = to_approximate.add_approximation_point(l, u, phi)
+                    if toAdd == True:
+                        # Gets equivalent z and adds to gurobi model.
+                        constraints = c_u + c_l + [c_sum_lambda]
+                        coefficients = [u for i in range(len(c_u))] + [-l for i in range(len(c_l))] + [1]
+                        self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
+                print("dual = : ", dual)
                 return dual
             
             def gradf(z):
-                if to_approximate.get_description() == "c(7,8)":
-                    print("z", z)
-                n = len(z)
-                zu, zl = z[:n//2], z[n//2:]
-                assert np.all(zu == zu[0])
-                assert np.all(zl == zl[0])
-                u, l = zu[0], -zl[0]
-                dF = np.zeros(n)
-                for i in range(n//2):
-                    dF[i] = distribution.pdf(u)
-                    dF[n//2 + i] = -distribution.pdf(l)
+                u, l = z[0], z[1]
+                dF = np.array([distribution.pdf(u), -distribution.pdf(l)])
+                print("dF = : ", dF)
                 F = distribution.cdf(u) - distribution.cdf(l)
-                if to_approximate.get_description() == "c(7,8)":
-                    print("grad", -dF/F - dual_z)
+                print("dual_z = : ", dual_z)
+                print("grad = : ", -dF/F - dual_z)
                 return -dF/F - dual_z
 
             # # Adds bounds to prevent variables being non-negative
-            bounds = []
-            for i in range(len(z0)):
-                bound = (0.00001, inf)
-                bounds.append(bound)
+            bounds = [(0.00002, inf), (0.00001, inf)]
 
             res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds)
             z = res.x
             f = res.fun
             status = res.success
+            print("Optimised F: ", f)
+            print("Optimised z: ", z)
             return f, status
 
         elif isinstance(to_approximate, Correlation):
@@ -319,80 +307,74 @@ class PstnOptimisation(object):
 
             # Gets constraint for sum of lambdas.
             c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
+
             # Gets the dual values associated with each constraint.
-            dual_u = np.array([c.getAttr("Pi") for c in c_u])
-            dual_l = np.array([c.getAttr("Pi") for c in c_l])
+            dual_u = np.zeros(len(to_approximate.constraints))
+            dual_l = np.zeros(len(to_approximate.constraints))
+            for i in range(len(to_approximate.constraints)):
+                dual_u[i] = sum([c.getAttr("Pi") for c in c_u if to_approximate.constraints[i].get_description() == c.getAttr("ConstrName").split("_")[1]])
+                dual_l[i] = -sum([c.getAttr("Pi") for c in c_l if to_approximate.constraints[i].get_description() == c.getAttr("ConstrName").split("_")[1]])
+
             dual_z = np.concatenate((dual_u, dual_l))
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
 
-            # Makes initial vector z given initial l and u.
-            z0 = np.zeros(2 * len(c_u))
-            indexes = np.zeros(len(c_u))
-            for i in range(len(c_u)):
-                probabilistic = c_u[i].getAttr("ConstrName").split("_")[1]
-                for j in range(len(to_approximate.constraints)):
-                    if to_approximate.constraints[j].get_description() == probabilistic:
-                        z0[i] = u0[j]
-                        z0[i + len(c_u)] = -l0[j]
-                        indexes[i] = j
+            z0 = np.concatenate((u0, l0))
 
             def dualf(z):
-                n = len(z)
-                zu, zl = z[:n//2], z[n//2:]
-                # Since z can be in form z = [u1, u1, u2, -l1, -l1, -l2], we must extract in form l = [l1, l2] and u = [u1, u2]
-                # Variable indexes relates the position in vector zu and zl to the index of constraint i in correlation.contraints.
-                u, l = np.zeros(len(to_approximate.constraints)), np.zeros(len(to_approximate.constraints))
-                for i in range(len(to_approximate.constraints)):
-                    for j in range(len(indexes)):
-                        if indexes[j] == i:
-                            u[i] = zu[j]
-                            l[i] = -zl[j]
-                            break
+                u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
+                print("\n")
+                print("u = : ", u)
+                print("l = : ", l)
+                print("F = : ", to_approximate.evaluate_probability(l, u))
                 phi = -log(to_approximate.evaluate_probability(l, u))
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0:
-                    to_approximate.approximation["points"].append((l, u))
-                    to_approximate.approximation["evaluation"].append(phi)
+                    toAdd = to_approximate.add_approximation_point(l, u, phi)
                     # Add to gurobi model.
-                    constraints = c_u + c_l + [c_sum_lambda]
-                    coefficients = np.append(z, 1)
-                    self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
+                    if toAdd == True:
+                        constraints = c_u + c_l + [c_sum_lambda]
+                        # Here we need to get the equivalent l and u for each constraint since the probabilistic constraint can be different.
+                        coefficients = np.zeros(len(constraints))
+                        for i in range(len(constraints)):
+                            if "_sum_lam" in constraints[i].getAttr("ConstrName"):
+                                coefficients[i] = 1
+                            else:
+                                probabilistic_constraint = constraints[i].getAttr("ConstrName").split("_")[1]
+                                for j in range(len(to_approximate.constraints)):
+                                    if to_approximate.constraints[j].get_description() == probabilistic_constraint and "_ub" in constraints[i].getAttr("ConstrName"):
+                                        coefficients[i] = u[j]
+                                    elif to_approximate.constraints[j].get_description() == probabilistic_constraint and "_lb" in constraints[i].getAttr("ConstrName"):
+                                        coefficients[i] = -l[j]
+                        self.model.addVar(lb = 0, ub = 1, obj = phi, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
+                print("dual = : ", dual)
                 return dual
             
             def gradf(z):
-                n = len(z)
-                zu, zl = z[:n//2], z[n//2:]
-                # Since z can be in form z = [u1, u1, u2, -l1, -l1, -l2], we must extract in form l = [l1, l2] and u = [u1, u2]
-                # Variable indexes relates the position in vector zu and zl to the index of constraint i in correlation.contraints.
-                u, l = np.zeros(len(to_approximate.constraints)), np.zeros(len(to_approximate.constraints))
-                for i in range(len(to_approximate.constraints)):
-                    for j in range(len(indexes)):
-                        if indexes[j] == i:
-                            u[i] = zu[j]
-                            l[i] = -zl[j]
-                            break
+                u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 dl, du = to_approximate.evaluate_gradient(l, u)
-                # As above but in reverse this adds the gradient into the vector at the appropriate position based on "indexes"
-                dF = np.zeros(n)
-                for i in range(len(to_approximate.constraints)):
-                    for j in range(len(indexes)):
-                        if indexes[j] == i:
-                            dF[j] = du[i]
-                            dF[j + n//2] = dl[i]
+                dF = np.concatenate((du, dl))
                 F = to_approximate.evaluate_probability(l, u)
+                print("dF = : ", dF)
+                print("dual_z = : ", dual_z)
+                print("grad = : ", -dF/F - dual_z)
                 return -dF/F - dual_z
 
             # Adds bounds to prevent variables being non-negative
             bounds = []
-            for i in range(len(z0)):
-                bound = (0.00001, inf)
+            for i in range(2*len(to_approximate.constraints)):
+                if i <= len(to_approximate.constraints):
+                    bound = (0.00002, inf)
+                else:
+                    bound = (0.00001, inf)
                 bounds.append(bound)
 
             # Finds the column z that minimizes the dual.
             res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds)
             z = res.x
             f = res.fun
+            print("Optimised F: ", f)
+            print("Optimised z: ", z)
             status = res.success
             return f, status
         else:
