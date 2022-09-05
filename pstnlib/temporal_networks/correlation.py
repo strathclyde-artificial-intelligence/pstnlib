@@ -60,6 +60,7 @@ class Correlation:
         Input:          eta:    Parameter - the larger eta is, the closer to the identity matrix will be the correlation matrix (more details see https://stats.stackexchange.com/questions/2746/how-to-efficiently-generate-random-positive-semidefinite-correlation-matrices)
         Output:         Correlation matrix
         """
+        print(self.get_description())
         size = 1
         n = len(self.constraints)
         beta0 = eta - 1 + n/2
@@ -80,6 +81,7 @@ class Correlation:
             P[k, i] = p
             P[i, k] = p
         self.correlation = np.transpose(P, (2, 0 ,1))[0]
+        print(self.correlation)
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
     
     def evaluate_probability(self, l, u):

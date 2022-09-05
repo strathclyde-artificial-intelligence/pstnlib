@@ -6,13 +6,15 @@ import numpy as np
 import numpy as np
 from scipy import stats
 from math import inf
-from temporal_network_classes import ProbabilisticTemporalNetwork, Constraint, TimePoint
+from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
+from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 import time
 import gurobipy as gp
 from gurobipy import GRB
 inf = np.inf
 
-def linear_probability(constraint: Constraint, n: int) -> tuple[list]:
+def linear_probability(constraint: ProbabilisticConstraint, n: int) -> tuple[list]:
     '''
     Description: Returns piecewise linear points representing pdf.
     Input:  constraint - Instance of probabilistic constraint.
@@ -21,7 +23,7 @@ def linear_probability(constraint: Constraint, n: int) -> tuple[list]:
             partitions_u = gradient, intercept pairs representing the piecewise linear segments to the right of the mode
     '''
     mean = constraint.mean
-    sd = constraint.sigma
+    sd = constraint.sd
     norm = stats.norm(mean, sd)
 
     # Since the PDF of omega is unbounded, in order to seperate the probability mass at set points, we must pick some arbitrarily large upper and arbitrarily small
@@ -184,12 +186,10 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15, solver: str = "gur
 
         for t in tc:
             m.addVar(vtype=GRB.CONTINUOUS, name=str(t.id))
-    
-        for c in cu:
-            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fl")
-            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fu")
 
         for c in cp:
+            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fl")
+            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fu")
             m.addVar(lb=0, ub=c.mean, vtype=GRB.CONTINUOUS, name = c.get_description() + "_l")
             m.addVar(lb=c.mean, ub=inf, vtype=GRB.CONTINUOUS, name = c.get_description() + "_u")
         m.update()
@@ -202,59 +202,44 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15, solver: str = "gur
             m.addConstr(end - start <= c.ub)
             # Adds constraint of the form b_i - b_j -  r_l_{ij} <= -x_{ij}
             m.addConstr(end - start >= c.lb)
-                    
+
         for c in cu:
-            PSTN.incoming_probabilistic(c)
+            incoming = PSTN.get_incoming_probabilistic(c)
             ## Start time-point in constraint is uncontrollable
             if incoming["start"] != None:
                 incoming = incoming["start"]
                 start, end = m.getVarByName(str(incoming.source.id)), m.getVarByName(str(c.sink.id))
                 omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description() + "_Fu")
-         
                 # For constraint of the form bj - bi - l_i <= y_{ij}
                 m.addConstr(end - start - omega_l <= c.ub)
                 # For constraint of the form bi - bj + u_i <= -x_{ij}
                 m.addConstr(end - start - omega_u >= c.lb)
 
-                 # Adds piecewise linear constraints.
-                partitions = linear_probability(incoming, pres)
-                partitions_l, partitions_u = partitions[0], partitions[1]
-
-                # Adds constraints of the form F_l >= grad * l + intercept
-                for partition in partitions_l:
-                    grad, const = partition[0], partition[1]
-                    m.addConstr(F_l - grad*omega_l >= const)
-
-                for partition in partitions_u:
-                    grad, const = partition[0], partition[1]
-                    m.addConstr(F_u - grad*omega_u >= const)
-    
             ## End time-point in constraint is uncontrollable
             elif incoming["end"] != None:
                 incoming = incoming["end"]
                 start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(incoming.source.id))
                 omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_decsription() + "_Fu")
-            
                 # For constraint of the form b_j + u_{ij} - b_i <= y_{ij}      
                 m.addConstr(end - start + omega_u <= c.ub)        
                 # For constraint of the form b_i - bj - l_{ij} <= -x_{ij}
                 m.addConstr(end - start + omega_l >= c.lb)
 
-                # Adds piecewise linear constraints.
-                partitions = linear_probability(incoming, pres)
-                partitions_l, partitions_u = partitions[0], partitions[1]
+        # Adds piecewise linear approximation of probabilistic constraints.
+        for c in cp:
+            F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description() + "_Fu")
+            omega_l, omega_u = m.getVarByName(c.get_description() + "_l"), m.getVarByName(c.get_description() + "_u")
+            # Adds piecewise linear constraints.
+            partitions = linear_probability(c, pres)
+            partitions_l, partitions_u = partitions[0], partitions[1]
+            # Adds constraints of the form F_l >= grad * l + intercept
+            for partition in partitions_l:
+                grad, const = partition[0], partition[1]
+                m.addConstr(F_l - grad*omega_l >= const)
+            for partition in partitions_u:
+                grad, const = partition[0], partition[1]
+                m.addConstr(F_u - grad*omega_u >= const)
 
-                # Adds constraints of the form F_l >= grad * l + intercept
-                for partition in partitions_l:
-                    grad, const = partition[0], partition[1]
-                    m.addConstr(F_l - grad*omega_l >= const)
-
-                for partition in partitions_u:
-                    grad, const = partition[0], partition[1]
-                    m.addConstr(F_u - grad*omega_u >= const)
-                
         #m.addConstr(m.getVarByName("0") == 0)
         m.update()
         risk = m.getVarByName("Risk")

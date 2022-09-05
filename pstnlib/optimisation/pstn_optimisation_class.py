@@ -8,11 +8,14 @@ from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
+from pstnlib.optimisation.column_generation import ColumnGenerationProbabilistic
+from cyipopt import minimize_ipopt
 import gurobipy as gp
 from gurobipy import GRB
 from scipy import optimize
 inf = 1000000000
-eps = 1e-5
+eps = 1e-9
+
 class OptimisationSolution(object):
     """
     Description:    Class representing a solution to the restricted master problem on a given iteration.
@@ -82,7 +85,7 @@ class PstnOptimisation(object):
         cp = self.network.get_probabilistic_constraints()
         for c in cp:
             # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
-            l = initial.addVar(name = c.get_description() + "_zl", lb = max(eps, c.mean - 6 * c.sd))
+            l = initial.addVar(name = c.get_description() + "_zl", lb = max(0, c.mean - 6 * c.sd))
             u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
             initial.addConstr(l + eps <= u, name = c.get_description() + "l_u")
             initial.update()
@@ -123,7 +126,7 @@ class PstnOptimisation(object):
                 c.approximation["points"].append((l, u))
                 # Calculates probability and saves the value of -log(F(z))
                 F = c.evaluate_probability(l, u)
-                c.approximation["evaluation"].append(-log(F))
+                c.approximation["evaluation"].append(-log(F + 1e-9))
             #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
             elif isinstance(c, ProbabilisticConstraint):
                 # Initialises the inner approximation
@@ -134,7 +137,7 @@ class PstnOptimisation(object):
                 c.approximation["points"].append((l, u))
                 # Calculates probability and adds funtion evaluation
                 F = c.evaluate_probability(l, u)
-                c.approximation["evaluation"].append(-log(F))
+                c.approximation["evaluation"].append(-log(F + 1e-9))
     
     def build_initial_model(self):
         """
@@ -236,12 +239,11 @@ class PstnOptimisation(object):
             c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
             # Gets the dual values associated with each constraint.
             print([c.getAttr("constrName") for c in c_u])
-            print([c.getAttr("Pi") for c in c_u])
+            print("Mean: ", to_approximate.mean, "SD: ", to_approximate.sd)
             print("Sum lambda value", c_sum_lambda.getAttr("Pi"))
             dual_u = sum([c.getAttr("Pi") for c in c_u])
             dual_l = -sum([c.getAttr("Pi") for c in c_l])
             dual_z = np.array([dual_u, dual_l])
-            print(dual_z)
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
            
             # Makes initial vector z given initial l and u. 
@@ -255,7 +257,8 @@ class PstnOptimisation(object):
                 print("u = : ", u)
                 print("l = : ", l)
                 print("F = : ", distribution.cdf(u) - distribution.cdf(l))
-                phi = -log(distribution.cdf(u) - distribution.cdf(l))
+                print("Phi = : ", -log(distribution.cdf(u) - distribution.cdf(l) + 1e-9))
+                phi = -log(distribution.cdf(u) - distribution.cdf(l) + 1e-9)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0:
@@ -272,13 +275,14 @@ class PstnOptimisation(object):
                 u, l = z[0], z[1]
                 dF = np.array([distribution.pdf(u), -distribution.pdf(l)])
                 print("dF = : ", dF)
-                F = distribution.cdf(u) - distribution.cdf(l)
+                F = distribution.cdf(u) - distribution.cdf(l) + 1e-9
                 print("dual_z = : ", dual_z)
                 print("grad = : ", -dF/F - dual_z)
                 return -dF/F - dual_z
 
             # # Adds bounds to prevent variables being non-negative
-            bounds = [(0.00002, inf), (0.00001, inf)]
+            bounds = [(0, inf), (0, inf)]
+
 
             res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds)
             z = res.x
@@ -307,7 +311,9 @@ class PstnOptimisation(object):
 
             # Gets constraint for sum of lambdas.
             c_sum_lambda = self.model.getConstrByName(to_approximate.get_description() + "_sum_lam")
-
+            print([c.getAttr("constrName") for c in c_u])
+            print("Mean: ", to_approximate.mean, "SD: ", to_approximate.covariance)
+            print("Sum lambda value", c_sum_lambda.getAttr("Pi"))
             # Gets the dual values associated with each constraint.
             dual_u = np.zeros(len(to_approximate.constraints))
             dual_l = np.zeros(len(to_approximate.constraints))
@@ -326,7 +332,8 @@ class PstnOptimisation(object):
                 print("u = : ", u)
                 print("l = : ", l)
                 print("F = : ", to_approximate.evaluate_probability(l, u))
-                phi = -log(to_approximate.evaluate_probability(l, u))
+                print("Phi = : ", -log(to_approximate.evaluate_probability(l, u) + 1e-9))
+                phi = -log(to_approximate.evaluate_probability(l, u) + 1e-9)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0:
@@ -354,7 +361,7 @@ class PstnOptimisation(object):
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 dl, du = to_approximate.evaluate_gradient(l, u)
                 dF = np.concatenate((du, dl))
-                F = to_approximate.evaluate_probability(l, u)
+                F = to_approximate.evaluate_probability(l, u) + 1e-9
                 print("dF = : ", dF)
                 print("dual_z = : ", dual_z)
                 print("grad = : ", -dF/F - dual_z)
@@ -364,9 +371,9 @@ class PstnOptimisation(object):
             bounds = []
             for i in range(2*len(to_approximate.constraints)):
                 if i <= len(to_approximate.constraints):
-                    bound = (0.00002, inf)
+                    bound = (0, inf)
                 else:
-                    bound = (0.00001, inf)
+                    bound = (0, inf)
                 bounds.append(bound)
 
             # Finds the column z that minimizes the dual.
@@ -380,7 +387,7 @@ class PstnOptimisation(object):
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
 
-    def optimise(self, max_iterations: int = 2, tolerance = 1e-6):
+    def optimise(self, max_iterations: int = 30, tolerance = 1e-6):
         """
         Finds schedule that optimises probability of success using column generation
         """

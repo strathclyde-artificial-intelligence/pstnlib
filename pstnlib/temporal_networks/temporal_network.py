@@ -8,7 +8,7 @@ import json
 import subprocess
 from graphviz import Digraph
 
-inf = 1000000000
+inf = 1e9
 
 class TemporalNetwork:
     """
@@ -124,7 +124,6 @@ class TemporalNetwork:
             if -constraint.ub > existing.lb:
                 existing.duration_bound["lb"] = -constraint.ub
             
-
     def get_adjacency_matrix(self) -> dict[TimePoint, dict]:
         """
         gets adjacency matrix (dictionary) representation of temporal-network

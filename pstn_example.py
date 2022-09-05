@@ -7,8 +7,10 @@ from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.constraint import Constraint
 from pstnlib.optimisation.pstn_optimisation_class import PstnOptimisation
+from pstnlib.optimisation.paris import paris
 from random_uncertainties import save_random_uncertainties
 import random
+import numpy as np
 
 domain = "temporal-planning-domains/rovers-metric-time-2006/domain.pddl"
 problem = "temporal-planning-domains/rovers-metric-time-2006/instances/instance-2.pddl"
@@ -29,7 +31,7 @@ network = TemporalNetwork()
 network.parse_from_temporal_plan_network(plan.temporal_network)
 
 # Adds a deadline to modify solvability
-deadline = 35
+deadline = 47
 start_id = min([i.id for i in network.time_points])
 end_id = max([i.id for i in network.time_points])
 network.add_constraint(Constraint(network.get_timepoint_by_id(start_id), network.get_timepoint_by_id(end_id), "Overall deadline", {"lb": 0, "ub": deadline}))
@@ -38,7 +40,7 @@ network.plot_dot_graph()
 
 # # Generates random uncertainties from domain and problem and saves to folder
 uncertainties = "temporal-planning-domains/rovers-metric-time-2006/uncertainties/rovers_instance-2_uncertainties_1.json"
-save_random_uncertainties(domain, problem, uncertainties)
+# save_random_uncertainties(domain, problem, uncertainties)
 
 # makes pstn, reads uncertainties from json and saves pstn as json
 pstn = ProbabilisticTemporalNetwork()
@@ -54,14 +56,27 @@ pstn2.parse_from_json("junk/test.json")
 pstn2.name = "rovers_instance_2_pstn_copy"
 pstn2.plot_dot_graph()
 
-# Gets random probabilistic constraints to add correlation between
+# Solve using PARIS Algorithm.
+m = paris(pstn2)
+# Gets values of probability variables and computes joint outcome
+prob = 1
+for constraint in pstn2.get_probabilistic_constraints():
+    lower, upper = m.getVarByName(constraint.get_description() + "_Fl"), m.getVarByName(constraint.get_description() + "_Fu")
+    prob *= (1 - (lower.x + upper.x))
+
+print(prob)
+
+#Gets random probabilistic constraints to add correlation between
 correlated_edges = random.sample(pstn2.get_probabilistic_constraints(), 4)
 corr1, corr2 = correlated_edges[:2], correlated_edges[2:]
 corr1, corr2 = Correlation(corr1), Correlation(corr2)
 
-# Adds a random psd correlation matric
-corr1.add_random_correlation()
-corr2.add_random_correlation()
+#Gets probabilistic constraints of choice and adds correlation between them.
+corr1 = Correlation([pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(3), pstn2.get_timepoint_by_id(4)), pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(7), pstn2.get_timepoint_by_id(8))])
+corr2 = Correlation([pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(5), pstn2.get_timepoint_by_id(6)), pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(9), pstn2.get_timepoint_by_id(10))])
+# Adds a random psd correlation matrix
+corr1.add_correlation(np.array([[1, 0.4], [0.4, 1]]))
+corr2.add_correlation(np.array([[1, -0.2], [-0.2, 1]]))
 
 # Makes a correlated temporal network
 cpstn = CorrelatedTemporalNetwork()

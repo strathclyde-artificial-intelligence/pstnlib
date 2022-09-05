@@ -5,7 +5,7 @@ from pstnlib.temporal_networks.timepoint import TimePoint
 import subprocess
 from graphviz import Digraph
 import json
-inf = 1000000000
+inf = 1e9
 
 class ProbabilisticTemporalNetwork(TemporalNetwork):
     """
@@ -175,7 +175,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         self.set_controllability_of_time_points()
         uncontrollable_constraints = []
         for constraint in self.constraints:
-            if constraint.source.controllable == False or constraint.sink.controllable == False:
+            if (constraint.source.controllable == False or constraint.sink.controllable == False) and not isinstance(constraint, ProbabilisticConstraint):
                 uncontrollable_constraints.append(constraint)
         return uncontrollable_constraints
     
@@ -194,6 +194,28 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         given a time-point j, returns a list of all incoming edges (i, j)
         """
         return [ij for ij in self.constraints if ij.sink == timepoint and ij.type == "stc"]
+    
+    def get_incoming_probabilistic(self, constraint: Constraint) -> dict:
+        """
+        given a simple temporal constraint returns dictionary of incoming probabilistic constraints in the form:
+        {"start": incoming, "end": incoming}, where if constraint is edge (i, j), start is the constraint (k, i) 
+        and end is the constraint (k, j). If no incoming probabilistic at either, the value is set to None 
+        """
+        if constraint.source.controllable == True and constraint.sink.controllable == True:
+            raise AttributeError("Constraint has no incoming contingent links")
+        else:
+            incoming_source = [g for g in self.get_probabilistic_constraints() if g.sink == constraint.source]
+            incoming_sink = [g for g in self.get_probabilistic_constraints() if g.sink == constraint.sink]
+            if len(incoming_source) > 1 or len(incoming_sink) > 1:
+                raise AttributeError("More than one incoming contingent edge")
+            else:
+                try:
+                    return {"start": incoming_source[0], "end": incoming_sink[0]}
+                except IndexError:
+                    try:
+                        return {"start": incoming_source[0], "end": None}
+                    except IndexError:
+                        return {"start": None, "end": incoming_sink[0]}
     
     def plot_dot_graph(self):
         """
