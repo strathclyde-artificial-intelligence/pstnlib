@@ -58,7 +58,7 @@ def linear_probability(constraint: ProbabilisticConstraint, n: int) -> tuple[lis
         
     return (partitions_l, partitions_u)
 
-def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15, solver: str = "gurobi"):
+def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
     '''
     Description:    Implementation of the PARIS algorithm for strong controllability of PSTNs from "PARIS: a Polynomial-Time, Risk-Sensitive Scheduling Algorithm for Probabilistic
                     Simple Temporal Networks with Uncertainty", Santana et al. 2016.
@@ -67,197 +67,94 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15, solver: str = "gur
                     solver - Defines the LP solver to be used. Can be "gurobi" or "clp"
     Output:         m - A model containing all variables, constraints and objectives
     '''
-    if solver == "clp":
-        m = CyLPModel()
+    if PSTN.name != None:
+        m = gp.Model("PARIS_{}".format(PSTN.name))
+    else:
+        m = gp.Model("PARIS")
 
-        # Gets relevant items from PSTN
-        cc = PSTN.get_controllable_constraints()
-        cu = PSTN.get_uncontrollable_constraints()
-        cp = PSTN.get_probabilistic_constraints()
-        tc = PSTN.get_controllable_time_points()
-    
-        #Adds Problem Variables
-        m.addVariable("Risk", 1)
-        prob_vars = []
+    # Gets relevant items from PSTN
+    cc = PSTN.get_controllable_constraints()
+    cu = PSTN.get_uncontrollable_constraints()
+    cp = PSTN.get_probabilistic_constraints()
+    tc = PSTN.get_controllable_time_points()
 
-        for t in tc:
-            tp = m.addVariable(str(t.id), 1)
-            m += tp >= 0
+    #Adds Problem Variables
+    m.addVar(vtype=GRB.CONTINUOUS, name = "Risk")
 
-    
-        for c in cu:
-            Fl = m.addVariable(c.get_description() + "_Fl", 1)
-            Fu = m.addVariable(c.get_description() + "_Fu", 1)
-            prob_vars.append(Fl)
-            prob_vars.append(Fu)
+    for t in tc:
+        m.addVar(vtype=GRB.CONTINUOUS, name=str(t.id))
 
-        for c in cp:
-            l = m.addVariable(c.get_description() + "_l", 1)
-            u = m.addVariable(c.get_description() + "_u", 1)
-            m += l <= c.mean
-            m += u >= c.mean
+    for c in cp:
+        m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fl")
+        m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fu")
+        m.addVar(lb=0, ub=c.mean, vtype=GRB.CONTINUOUS, name = c.get_description() + "_l")
+        m.addVar(lb=c.mean, ub=inf, vtype=GRB.CONTINUOUS, name = c.get_description() + "_u")
+    m.update()
 
-        # Adds constraints
-        for c in cc:
-            # Collects indices of required variables in variable vector x
-            start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(c.sink.id))
-            # Adds constraint of the form b_j - b_i <= ub_{ij}
-            m += end - start <= c.ub
-            # Adds constraint of the form b_i - b_j <= -lb_{ij}
-            m += end - start >= c.lb
-                    
-        for c in cu:
-            incoming = PSTN.incoming_probabilistic(c)
-            ## Start time-point in constraint is uncontrollable
-            if incoming["start"] != None:
-                incoming = incoming["start"]
-                start, end = m.getVarByName(str(incoming.source.id)), m.getVarByName(str(c.sink.id))
-                omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description + "_Fu")
-         
-                # For constraint of the form bj - bi - l_i <= ub_{ij}
-                m += end - start - omega_l <= c.ub
-                # For constraint of the form bi - bj + u_i <= -lb_{ij}
-                m += end - start - omega_u >= c.lb
+    # Adds constraints
+    for c in cc:
+        # Collects indices of required variables in variable vector x
+        start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(c.sink.id))
+        # Adds constraint of the form b_j - b_i - r_u_{ij} <= y_{ij}
+        m.addConstr(end - start <= c.ub)
+        # Adds constraint of the form b_i - b_j -  r_l_{ij} <= -x_{ij}
+        m.addConstr(end - start >= c.lb)
 
-                # Adds piecewise linear constraints.
-                partitions = linear_probability(incoming, pres)
-                partitions_l, partitions_u = partitions[0], partitions[1]
+    for c in cu:
+        incoming = PSTN.get_incoming_probabilistic(c)
+        ## Start time-point in constraint is uncontrollable
+        if incoming["start"] != None:
+            incoming = incoming["start"]
+            start, end = m.getVarByName(str(incoming.source.id)), m.getVarByName(str(c.sink.id))
+            omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
+            # For constraint of the form bj - bi - l_i <= y_{ij}
+            m.addConstr(end - start - omega_l <= c.ub)
+            # For constraint of the form bi - bj + u_i <= -x_{ij}
+            m.addConstr(end - start - omega_u >= c.lb)
 
-                # Adds constraints of the form F_l >= grad * l + intercept
-                for partition in partitions_l:
-                    grad, const = partition[0], partition[1]
-                    m += F_l - grad*omega_l >= const
+        ## End time-point in constraint is uncontrollable
+        elif incoming["end"] != None:
+            incoming = incoming["end"]
+            start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(incoming.source.id))
+            omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
+            # For constraint of the form b_j + u_{ij} - b_i <= y_{ij}      
+            m.addConstr(end - start + omega_u <= c.ub)        
+            # For constraint of the form b_i - bj - l_{ij} <= -x_{ij}
+            m.addConstr(end - start + omega_l >= c.lb)
 
-                for partition in partitions_u:
-                    grad, const = partition[0], partition[1]
-                    m += F_u - grad*omega_u >= const
-    
-            ## End time-point in constraint is uncontrollable
-            elif incoming["end"] != None:
-                incoming = incoming["end"]
-                start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(incoming.source.id))
-                omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description() + "_Fu")
-            
-                # For constraint of the form b_j + u_{ij} - b_i <= ub_{ij}      
-                m += end - start + omega_u <= c.ub     
-                # For constraint of the form b_i - bj - l_{ij} <= -lb_{ij}
-                m += end - start + omega_l >= c.lb
+    # Adds piecewise linear approximation of probabilistic constraints.
+    for c in cp:
+        F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description() + "_Fu")
+        omega_l, omega_u = m.getVarByName(c.get_description() + "_l"), m.getVarByName(c.get_description() + "_u")
+        # Adds piecewise linear constraints.
+        partitions = linear_probability(c, pres)
+        partitions_l, partitions_u = partitions[0], partitions[1]
+        # Adds constraints of the form F_l >= grad * l + intercept
+        for partition in partitions_l:
+            grad, const = partition[0], partition[1]
+            m.addConstr(F_l - grad*omega_l >= const)
+        for partition in partitions_u:
+            grad, const = partition[0], partition[1]
+            m.addConstr(F_u - grad*omega_u >= const)
 
-                # Adds piecewise linear constraints.
-                partitions = linear_probability(incoming, pres)
-                partitions_l, partitions_u = partitions[0], partitions[1]
+    #m.addConstr(m.getVarByName("0") == 0)
+    m.update()
+    risk = m.getVarByName("Risk")
+    m.addConstr(gp.quicksum([v for v in m.getVars() if v.varName[-2:] in ["Fu", "Fl"]]) == risk, 'risk')
 
-                # Adds constraints of the form F_l >= grad * l + intercept
-                for partition in partitions_l:
-                    grad, const = partition[0], partition[1]
-                    m += F_l - grad*omega_l >= const
+    m.update()
+    m.optimize()
 
-                for partition in partitions_u:
-                    grad, const = partition[0], partition[1]
-                    m += F_u - grad*omega_u >= const
-    
-        # Sets objective to minimise risk
-        #m += m.getVarByName("0") == 0
-        risk = m.getVarByName("Risk")
-        m += sum(prob_vars) == risk
-        m.objective = risk
-    
-        # Create instance of solver using the model
-        s = CyClpSimplex(m)
-        s.primal()
-        for t in tc:
-            ("\nschedule: ")
-            print("{}: {}".format(t.id, s.primalVariableSolution[str(t.id)]))
-        return s
-    
-    elif solver == "gurobi":
-        m = gp.Model()
-
-        # Gets relevant items from PSTN
-        cc = PSTN.get_controllable_constraints()
-        cu = PSTN.get_uncontrollable_constraints()
-        cp = PSTN.get_probabilistic_constraints()
-        tc = PSTN.get_controllable_time_points()
-    
-        #Adds Problem Variables
-        m.addVar(vtype=GRB.CONTINUOUS, name = "Risk")
-
-        for t in tc:
-            m.addVar(vtype=GRB.CONTINUOUS, name=str(t.id))
-
-        for c in cp:
-            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fl")
-            m.addVar(vtype=GRB.CONTINUOUS, obj = 1, name = c.get_description() + "_Fu")
-            m.addVar(lb=0, ub=c.mean, vtype=GRB.CONTINUOUS, name = c.get_description() + "_l")
-            m.addVar(lb=c.mean, ub=inf, vtype=GRB.CONTINUOUS, name = c.get_description() + "_u")
-        m.update()
-
-        # Adds constraints
-        for c in cc:
-            # Collects indices of required variables in variable vector x
-            start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(c.sink.id))
-            # Adds constraint of the form b_j - b_i - r_u_{ij} <= y_{ij}
-            m.addConstr(end - start <= c.ub)
-            # Adds constraint of the form b_i - b_j -  r_l_{ij} <= -x_{ij}
-            m.addConstr(end - start >= c.lb)
-
-        for c in cu:
-            incoming = PSTN.get_incoming_probabilistic(c)
-            ## Start time-point in constraint is uncontrollable
-            if incoming["start"] != None:
-                incoming = incoming["start"]
-                start, end = m.getVarByName(str(incoming.source.id)), m.getVarByName(str(c.sink.id))
-                omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                # For constraint of the form bj - bi - l_i <= y_{ij}
-                m.addConstr(end - start - omega_l <= c.ub)
-                # For constraint of the form bi - bj + u_i <= -x_{ij}
-                m.addConstr(end - start - omega_u >= c.lb)
-
-            ## End time-point in constraint is uncontrollable
-            elif incoming["end"] != None:
-                incoming = incoming["end"]
-                start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(incoming.source.id))
-                omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-                # For constraint of the form b_j + u_{ij} - b_i <= y_{ij}      
-                m.addConstr(end - start + omega_u <= c.ub)        
-                # For constraint of the form b_i - bj - l_{ij} <= -x_{ij}
-                m.addConstr(end - start + omega_l >= c.lb)
-
-        # Adds piecewise linear approximation of probabilistic constraints.
-        for c in cp:
-            F_l, F_u = m.getVarByName(c.get_description() + "_Fl"), m.getVarByName(c.get_description() + "_Fu")
-            omega_l, omega_u = m.getVarByName(c.get_description() + "_l"), m.getVarByName(c.get_description() + "_u")
-            # Adds piecewise linear constraints.
-            partitions = linear_probability(c, pres)
-            partitions_l, partitions_u = partitions[0], partitions[1]
-            # Adds constraints of the form F_l >= grad * l + intercept
-            for partition in partitions_l:
-                grad, const = partition[0], partition[1]
-                m.addConstr(F_l - grad*omega_l >= const)
-            for partition in partitions_u:
-                grad, const = partition[0], partition[1]
-                m.addConstr(F_u - grad*omega_u >= const)
-
-        #m.addConstr(m.getVarByName("0") == 0)
-        m.update()
-        risk = m.getVarByName("Risk")
-        m.addConstr(gp.quicksum([v for v in m.getVars() if v.varName[-2:] in ["Fu", "Fl"]]) == risk, 'risk')
-    
-        m.update()
-        m.optimize()
-
-        # Checks to see whether an optimal solution is found and if so it prints the solution and objective value
-        if m.status == GRB.OPTIMAL:
-            print('\nObjective: ', m.objVal)
-            print('\nVars:')
-            for v in m.getVars():
-                print("Variable {}: ".format(v.varName) + str(v.x))
-        else:
-            m.computeIIS()
-            m.write("logs/{}.ilp".format(PSTN.name))
-        return m
+    # Checks to see whether an optimal solution is found and if so it prints the solution and objective value
+    if m.status == GRB.OPTIMAL:
+        print('\nObjective: ', m.objVal)
+        print('\nVars:')
+        for v in m.getVars():
+            print("Variable {}: ".format(v.varName) + str(v.x))
+    else:
+        m.computeIIS()
+        m.write("logs/{}.ilp".format(PSTN.name))
+    return m
         
         
     

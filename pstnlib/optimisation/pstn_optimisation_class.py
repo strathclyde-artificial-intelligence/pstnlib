@@ -8,53 +8,13 @@ from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
+from pstnlib.optimisation.solution import Solution
 from cyipopt import minimize_ipopt
 import gurobipy as gp
 from gurobipy import GRB
 from scipy import optimize
 inf = 1000000000
 eps = 1e-9
-
-class OptimisationSolution(object):
-    """
-    Description:    Class representing a solution to the restricted master problem on a given iteration.
-    Parameters:     model - Gurobi model instance containing solution.
-                    runtime - cumulative runtime of current iteration.
-    """
-    def __init__(self, network, model, runtime) -> None:
-        self.network = network
-        self.model = model
-        self.runtime = runtime
-    
-    def get_schedule(self) -> dict:
-        """
-        returns the schedule from the gurobi model solution.
-        """
-        schedule = {}
-        for tp in self.network.get_controllable_time_points():
-            value = self.model.getVarByName(str(tp.id)).x
-            schedule[str(tp.id)] = value
-        return schedule
-
-
-    def get_probability(self) -> float:
-        """
-        returns the probability of success from the gurobi model solution.
-        """
-        return exp(-self.model.objVal)
-    
-    def monte_carlo(self, no_iterations = 1e6) -> float:
-        """
-        Runs a Monte-Carlo simulation and returns empirical probability of success.
-        """
-        pass
-
-    def simulate_execution(self) -> bool:
-        """
-        Simulates a single execution of the schedule. Returns True if successful, else returns False:
-        """
-        schedule = self.get_schedule
-        pass
 
 class PstnOptimisation(object):
     """
@@ -76,7 +36,8 @@ class PstnOptimisation(object):
         # If no schedule is provided, it finds an initial column
         initial = gp.Model("initiialisation")
         self.model = initial
-        self.results = []
+        self.solutions = []
+        self.status = None
 
         if self.correlated == False:
             self.sub_problems = self.network.get_probabilistic_constraints()
@@ -161,7 +122,10 @@ class PstnOptimisation(object):
         """
         Builds and solves the restricted master problem given the initial approximation points.
         """
-        m = gp.Model("RMP Iteration 0")
+        if self.network.name != None:
+            m = gp.Model("RMP_{}".format(self.network.name))
+        else:
+            m = gp.Model("RMP")
 
         # Adds Variable for timepoints
         tc = self.network.get_controllable_time_points()
@@ -269,6 +233,9 @@ class PstnOptimisation(object):
             z0 = np.array([u0, l0])
             
             def dualf(z):
+                """
+                Reduced cost: phi(z) - pi^T z - nu. This is the objective function of the column generation problem
+                """
                 u, l = z[0], z[1]
                 phi = -log(distribution.cdf(u) - distribution.cdf(l) + 1e-9)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
@@ -283,6 +250,9 @@ class PstnOptimisation(object):
                 return dual
             
             def gradf(z):
+                """
+                Returns the gradient vector of dualf: -grad F(z)/F(z) - z
+                """
                 u, l = z[0], z[1]
                 dF = np.array([distribution.pdf(u), -distribution.pdf(l)])
                 F = distribution.cdf(u) - distribution.cdf(l) + 1e-9
@@ -327,6 +297,9 @@ class PstnOptimisation(object):
             z0 = np.concatenate((u0, l0))
 
             def dualf(z):
+                """
+                Reduced cost: phi(z) - pi^T z - nu. This is the objective function of the column generation problem
+                """
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 phi = -log(to_approximate.evaluate_probability(l, u) + 1e-9)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
@@ -352,6 +325,9 @@ class PstnOptimisation(object):
                 return dual
             
             def gradf(z):
+                """
+                Returns the gradient vector of dualf: -grad F(z)/F(z) - z
+                """
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 dl, du = to_approximate.evaluate_gradient(l, u)
                 dF = np.concatenate((du, dl))
@@ -382,7 +358,7 @@ class PstnOptimisation(object):
         start = time()
         # Solves restricted master problem using initial points and saves solution. 
         self.model = self.build_initial_model()
-        self.results.append(OptimisationSolution(self.network, self.model, time() - start))
+        self.solutions.append(Solution(self.network, self.model, time() - start))
         no_iterations = 1
 
         function_values = []
@@ -400,7 +376,7 @@ class PstnOptimisation(object):
             self.model.write("junk/model{}.lp".format(no_iterations))
             self.model.optimize()
             self.model.write("junk/model{}.sol".format(no_iterations))
-            self.results.append(OptimisationSolution(self.network, self.model, time() - start))
+            self.solutions.append(Solution(self.network, self.model, time() - start))
 
             function_values = []
             # Solves the column generation problem for each sub problem.
@@ -418,7 +394,7 @@ class PstnOptimisation(object):
                     continue
                 else:
                     print("Variable {}: ".format(v.varName) + str(v.x))
-            return True
+            self.status = "Optimal"
         else:
             print("\nOptimisation failed")
             print('\n Objective: ', self.model.objVal)
@@ -429,7 +405,7 @@ class PstnOptimisation(object):
                     continue
                 else:
                     print("Variable {}: ".format(v.varName) + str(v.x))
-            return False
+            self.status = "Failed"
 
 
     

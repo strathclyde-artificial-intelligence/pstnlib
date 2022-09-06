@@ -1,4 +1,3 @@
-from numpy import correlate
 from otpl.pddl.parser import Parser
 from otpl.plans.temporal_plan import PlanTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
@@ -8,9 +7,9 @@ from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.constraint import Constraint
 from pstnlib.optimisation.pstn_optimisation_class import PstnOptimisation
 from pstnlib.optimisation.paris import paris
-from random_uncertainties import save_random_uncertainties
-import random
+from pstnlib.optimisation.solution import Solution
 import numpy as np
+from time import time
 
 domain = "temporal-planning-domains/rovers-metric-time-2006/domain.pddl"
 problem = "temporal-planning-domains/rovers-metric-time-2006/instances/instance-2.pddl"
@@ -38,62 +37,50 @@ network.add_constraint(Constraint(network.get_timepoint_by_id(start_id), network
 network.name = "rovers_instance-2_stn"
 network.plot_dot_graph()
 
-# # Generates random uncertainties from domain and problem and saves to folder
+# Imports uncertainties friom file
 uncertainties = "temporal-planning-domains/rovers-metric-time-2006/uncertainties/rovers_instance-2_uncertainties_1.json"
-# save_random_uncertainties(domain, problem, uncertainties)
 
 # makes pstn, reads uncertainties from json and saves pstn as json
 pstn = ProbabilisticTemporalNetwork()
 pstn.parse_from_temporal_network(network)
 pstn.parse_uncertainties_from_json(uncertainties)
 pstn.name = "rovers_instance_2_pstn"
-pstn.plot_dot_graph()
-pstn.save_as_json("junk/test.json")
-
-# loads the saved pstn from json
-pstn2 = ProbabilisticTemporalNetwork()
-pstn2.parse_from_json("junk/test.json")
-pstn2.name = "rovers_instance_2_pstn_copy"
-pstn2.plot_dot_graph()
-
-# Solve using PARIS Algorithm.
-m = paris(pstn2)
-# Gets values of probability variables and computes joint outcome
-prob = 1
-for constraint in pstn2.get_probabilistic_constraints():
-    lower, upper = m.getVarByName(constraint.get_description() + "_Fl"), m.getVarByName(constraint.get_description() + "_Fu")
-    prob *= (1 - (lower.x + upper.x))
-
-print(prob)
-
-#Gets random probabilistic constraints to add correlation between
-correlated_edges = random.sample(pstn2.get_probabilistic_constraints(), 4)
-corr1, corr2 = correlated_edges[:2], correlated_edges[2:]
-corr1, corr2 = Correlation(corr1), Correlation(corr2)
 
 #Gets probabilistic constraints of choice and adds correlation between them.
-corr1 = Correlation([pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(3), pstn2.get_timepoint_by_id(4)), pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(7), pstn2.get_timepoint_by_id(8))])
-corr2 = Correlation([pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(5), pstn2.get_timepoint_by_id(6)), pstn2.get_constraint_by_timepoint(pstn2.get_timepoint_by_id(9), pstn2.get_timepoint_by_id(10))])
-# Adds a random psd correlation matrix
-corr1.add_correlation(np.array([[1, 0.4], [0.4, 1]]))
-corr2.add_correlation(np.array([[1, -0.2], [-0.2, 1]]))
+corr1 = Correlation([pstn.get_constraint_by_timepoint(pstn.get_timepoint_by_id(3), pstn.get_timepoint_by_id(4)), pstn.get_constraint_by_timepoint(pstn.get_timepoint_by_id(7), pstn.get_timepoint_by_id(8))])
+corr2 = Correlation([pstn.get_constraint_by_timepoint(pstn.get_timepoint_by_id(5), pstn.get_timepoint_by_id(6)), pstn.get_constraint_by_timepoint(pstn.get_timepoint_by_id(9), pstn.get_timepoint_by_id(10))])
+corr1.add_correlation(np.array([[1, 0.5], [0.5, 1]]))
+corr2.add_correlation(np.array([[1, 0.4], [0.4, 1]]))
 
 # Makes a correlated temporal network
 cpstn = CorrelatedTemporalNetwork()
-cpstn.parse_from_probabilistic_temporal_network(pstn2)
+cpstn.parse_from_probabilistic_temporal_network(pstn)
 cpstn.add_correlation(corr1)
-cpstn.add_correlation(corr2)
-cpstn.save_as_json("junk/cpstn")
 
-# Testing save/load to/from json
-cpstn2 = CorrelatedTemporalNetwork()
-cpstn2.parse_from_json("junk/cpstn")
-cpstn2.save_as_json("junk/cpstn2")
-
-for constraint in cpstn.get_probabilistic_constraints():
-    incoming = cpstn.get_incoming_edge_from_timepoint(constraint.sink)
-    outgoing = cpstn.get_outgoing_edge_from_timepoint(constraint.sink)
-
-# Optimises
+# Optimises using column generation
 op = PstnOptimisation(cpstn)
 op.optimise()
+convex = op.solutions[-1]
+
+# Optimises using PARIS Algorithm.
+start = time()
+m = paris(pstn)
+lp = Solution(pstn, m, time() - start)
+
+print("\nSCHEDULES: ")
+print("LP:")
+print("\t", lp.get_schedule())
+print("CONVEX:")
+print("\t", convex.get_schedule())
+
+print("\nEMPIRICAL PROBABILITY: ")
+print("LP:")
+print("\t", lp.get_probability())
+print("CONVEX:")
+print("\t", convex.get_probability())
+
+print("\nACTUAL PROBABILITY: ")
+print("LP:")
+print("\t", lp.monte_carlo())
+print("CONVEX:")
+print("\t", convex.monte_carlo())
