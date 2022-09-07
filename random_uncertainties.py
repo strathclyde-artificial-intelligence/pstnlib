@@ -3,6 +3,9 @@ import numpy as np
 from scipy import stats
 from otpl.pddl.parser import Parser
 import json
+from pstnlib.temporal_networks.constraint import Constraint
+
+from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 
 def generate_random_uncertainties(domain_file: str, problem_file: str) -> dict:
     """
@@ -44,7 +47,19 @@ def save_random_uncertainties(domain_file: str, problem_file: str, output_file: 
     wrapper for generate_random_uncertainties to save as json
     """
     if output_file[-5:] != ".json":
-            file = file + ".json"
+            output_file = output_file + ".json"
     uncertainties = generate_random_uncertainties(domain_file, problem_file)
     with open(output_file, "w") as f:
         data = json.dump(uncertainties, f, indent=4, separators=(", ", ": "))
+
+def sample_probabilistic_constraints(network: ProbabilisticTemporalNetwork, n_correlations: int, size: int) -> list[Constraint]:
+    """
+    Randomly generates "n_correlations" samples of the probabilistic constraints in the network. Size is the number of constraints in each sample.
+    """
+    if len(network.get_probabilistic_constraints()) < n_correlations * size:
+        raise ValueError("Insuffucient probabilistic constraints for required size.")
+    sample = random.sample(network.get_probabilistic_constraints(), n_correlations * size)
+    random.shuffle(sample)
+    partitions = [sample[i::n_correlations] for i in range(n_correlations)]
+    return partitions
+    

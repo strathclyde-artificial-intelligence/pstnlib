@@ -14,6 +14,7 @@ class Solution(object):
         self.network = network
         self.model = model
         self.runtime = runtime
+        self.experimental_probability = None
     
     def get_probability(self) -> float:
         """
@@ -87,4 +88,5 @@ class Solution(object):
         for i in range(no_simulations):
             if self.simulate_execution() == True:
                 count += 1
+        self.experimental_probability = count/no_simulations
         return count/no_simulations

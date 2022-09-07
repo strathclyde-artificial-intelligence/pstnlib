@@ -44,7 +44,6 @@ class TemporalNetwork:
         start = self. get_timepoint_by_id(0)
         for timepoint in self.time_points:
             if not self.get_outgoing_edge_from_timepoint(timepoint):
-                print(timepoint)
                 self.add_constraint(Constraint(start, timepoint, "Deadline for Timepoint {}".format(timepoint.id), {"lb": 0, "ub": inf}))
 
     

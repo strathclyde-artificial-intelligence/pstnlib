@@ -9,7 +9,7 @@ from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 from pstnlib.optimisation.solution import Solution
-from cyipopt import minimize_ipopt
+from pstnlib.optimisation.paris import paris
 import gurobipy as gp
 from gurobipy import GRB
 from scipy import optimize
@@ -23,7 +23,7 @@ class PstnOptimisation(object):
                     results - List of instances of optimisation_colution class for each iteration
 
     """
-    def __init__(self, network: ProbabilisticTemporalNetwork, schedule = None) -> None:
+    def __init__(self, network: ProbabilisticTemporalNetwork) -> None:
         """
         Parses the probablistic temporal network and generates initial approximation points.
         """
@@ -32,91 +32,158 @@ class PstnOptimisation(object):
             self.correlated = True
         else:
             self.correlated = False
-        
-        # If no schedule is provided, it finds an initial column
-        initial = gp.Model("initiialisation")
-        self.model = initial
+
         self.solutions = []
+        self.lower_bound = eps
+        self.upper_bound = inf
         self.status = None
 
         if self.correlated == False:
             self.sub_problems = self.network.get_probabilistic_constraints()
         elif self.correlated == True:
             self.sub_problems = self.network.get_independent_probabilistic_constraints() + self.network.correlations
-
-        # Adds Variable for timepoints
-        tc = self.network.get_controllable_time_points()
-        x = initial.addMVar(len(tc), name=[str(t.id) for t in tc])
-        initial.update()
         
-        # Adds controllable constraints
-        cc = self.network.get_controllable_constraints()
-        A = np.zeros((2 * len(cc), len(tc)))
-        b = np.zeros((2 * len(cc)))
-        for i in range(len(cc)):
-            ub = 2 * i
-            lb = ub + 1
-            start_i, end_i = tc.index(cc[i].source), tc.index(cc[i].sink)
-            A[ub, start_i], A[ub, end_i], b[ub] = -1, 1, cc[i].ub
-            A[lb, start_i], A[lb, end_i], b[lb] = 1, -1, -cc[i].lb
-        initial.addConstr(A @ x <= b)
-
-        cp = self.network.get_probabilistic_constraints()
-        for c in cp:
-            # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
-            l = initial.addVar(name = c.get_description() + "_zl", lb = max(0, c.mean - 6 * c.sd))
-            u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
-            initial.addConstr(l + eps <= u, name = c.get_description() + "l_u")
+        # Tries to find initial solution using paris algorithm.
+        lp_model = paris(self.network)
+        # If a solution can be found it uses it to compute initial point, otherwise it uses heuristic.
+        if lp_model.status == GRB.OPTIMAL:
+            print("\nTRUE")
+            self.model = lp_model
+            tc = self.network.get_controllable_time_points()
+            cp = self.network.get_probabilistic_constraints()
+            x = [lp_model.getVarByName(str(t.id)).x for t in tc]
+            bounds = {}
+            for c in cp:
+                # Initialises upper and lower bound as +/- infinity
+                l, u = -inf, inf
+                # Gets all uncontrollable constraints succeeding the probabilistic constraint.
+                outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
+                incoming = self.network.get_incoming_uncontrollable_edge_from_timepoint(c.sink)
+                # Loops through all incoming/outgoing uncontrollable constraints and gets the tightest bound.
+                # if constraint is the form l_ij <= bj - (b_i + X_i) <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
+                for co in outgoing:
+                    source, sink = c.source, co.sink
+                    i, j = tc.index(source), tc.index(sink)
+                    curr_l = x[j] - x[i] - co.ub
+                    curr_u = x[j] - x[i] - co.lb
+                    # Checks if bounds are tighter.
+                    if curr_l > l:
+                        l = curr_l
+                    if curr_u < u:
+                        u = curr_u
+                # if constraint is the form l_ij <= (b_j + X_j) - b_i -  <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
+                for ci in incoming:
+                    source, sink = ci.source, c.source
+                    i, j = tc.index(source), tc.index(sink)
+                    curr_l = x[i] - x[j] + ci.lb
+                    curr_u = x[i] - x[j] + ci.ub
+                    # Checks if bounds are tighter.
+                    if curr_l > l:
+                        l = curr_l
+                    if curr_u < u:
+                        u = curr_u
+                bounds[c.get_description()] = (l, u)
+            for c in self.sub_problems:
+                if isinstance(c, Correlation):
+                    # Initialises the inner approximation for each correlation
+                    c.approximation = {"points": [], "evaluation": []}
+                    # From the solution extracts the lower and upper bounds.
+                    l, u = [], []
+                    for constraint in c.constraints:
+                        li = bounds[constraint.get_description()][0]
+                        ui = bounds[constraint.get_description()][1]
+                        l.append(li)
+                        u.append(ui)
+                    c.approximation["points"].append((l, u))
+                    # Calculates probability and saves the value of -log(F(z))
+                    F = c.evaluate_probability(l, u)
+                    c.approximation["evaluation"].append(-log(F + 1e-9))
+                #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
+                elif isinstance(c, ProbabilisticConstraint):
+                    # Initialises the inner approximation
+                    c.approximation = {"points": [], "evaluation": []}
+                    # From the solution extracts the lower and upper bounds.
+                    l, u = bounds[c.get_description()][0], bounds[c.get_description()][1]
+                    # Adds approximation point
+                    c.approximation["points"].append(bounds[c.get_description()])
+                    # Calculates probability and adds funtion evaluation
+                    F = c.evaluate_probability(l, u)
+                    c.approximation["evaluation"].append(-log(F + 1e-9))
+        else:
+            print("\nFalse")
+            initial = gp.Model("initiialisation")
+            self.model = initial
+            tc = self.network.get_controllable_time_points()
+            x = initial.addMVar(len(tc), name=[str(t.id) for t in tc])
             initial.update()
-            # Gets all uncontrollable constraints succeeding the probabilistic constraint.
-            outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
-            incoming = self.network.get_incoming_uncontrollable_edge_from_timepoint(c.sink)
-            # if constraint is the form l_ij <= bj - (b_i + X_i) <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-            for co in outgoing:
-                source, sink = c.source, co.sink
-                i, j = tc.index(source), tc.index(sink)
-                initial.addConstr(-l <= x[i] - x[j] + co.ub, name = co.get_description() + "_lb")
-                initial.addConstr(u <= x[j] - x[i] - co.lb, name = co.get_description() + "_ub")
-            # if constraint is the form l_ij <= (b_j + X_j) - b_i -  <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-            for ci in incoming:
-                source, sink = ci.source, c.source
-                i, j = tc.index(source), tc.index(sink)
-                initial.addConstr(-l <= x[j] - x[i] - ci.lb, name = ci.get_description() + "lb")
-                initial.addConstr(u <= x[i] - x[j] + ci.ub, name = ci.get_description() + "ub")
-        initial.addConstr(x[0] == 0)
-        initial.setObjective(sum([v for v in initial.getVars() if "_zu" in v.varName]) + sum([-v for v in initial.getVars() if "_zl" in v.varName]), GRB.MAXIMIZE)
-        initial.update()
-        initial.write("junk/initial.lp")
-        initial.optimize()
-        initial.write("junk/initial.sol")
+            # Adds controllable constraints
+            cc = self.network.get_controllable_constraints()
+            A = np.zeros((2 * len(cc), len(tc)))
+            b = np.zeros((2 * len(cc)))
+            for i in range(len(cc)):
+                ub = 2 * i
+                lb = ub + 1
+                start_i, end_i = tc.index(cc[i].source), tc.index(cc[i].sink)
+                A[ub, start_i], A[ub, end_i], b[ub] = -1, 1, cc[i].ub
+                A[lb, start_i], A[lb, end_i], b[lb] = 1, -1, -cc[i].lb
+            initial.addConstr(A @ x <= b)
 
-        # Adds initial approximation points
-        for c in self.sub_problems:
-            if isinstance(c, Correlation):
-                # Initialises the inner approximation for each correlation
-                c.approximation = {"points": [], "evaluation": []}
-                # From the solution extracts the lower and upper bounds.
-                l, u = [], []
-                for constraint in c.constraints:
-                    li = initial.getVarByName(constraint.get_description() + "_zl").x
-                    ui = initial.getVarByName(constraint.get_description() + "_zu").x
-                    l.append(li)
-                    u.append(ui)
-                c.approximation["points"].append((l, u))
-                # Calculates probability and saves the value of -log(F(z))
-                F = c.evaluate_probability(l, u)
-                c.approximation["evaluation"].append(-log(F + 1e-9))
-            #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
-            elif isinstance(c, ProbabilisticConstraint):
-                # Initialises the inner approximation
-                c.approximation = {"points": [], "evaluation": []}
-                l = initial.getVarByName(c.get_description() + "_zl").x
-                u = initial.getVarByName(c.get_description() + "_zu").x
-                # Adds approximation point
-                c.approximation["points"].append((l, u))
-                # Calculates probability and adds funtion evaluation
-                F = c.evaluate_probability(l, u)
-                c.approximation["evaluation"].append(-log(F + 1e-9))
+            cp = self.network.get_probabilistic_constraints()
+            for c in cp:
+                # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
+                l = initial.addVar(name = c.get_description() + "_zl", lb = max(0, c.mean - 6 * c.sd))
+                u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
+                initial.addConstr(l + eps <= u, name = c.get_description() + "l_u")
+                initial.update()
+                # Gets all uncontrollable constraints succeeding the probabilistic constraint.
+                outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
+                incoming = self.network.get_incoming_uncontrollable_edge_from_timepoint(c.sink)
+                # if constraint is the form l_ij <= bj - (b_i + X_i) <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
+                for co in outgoing:
+                    source, sink = c.source, co.sink
+                    i, j = tc.index(source), tc.index(sink)
+                    initial.addConstr(-l <= x[i] - x[j] + co.ub, name = co.get_description() + "_lb")
+                    initial.addConstr(u <= x[j] - x[i] - co.lb, name = co.get_description() + "_ub")
+                # if constraint is the form l_ij <= (b_j + X_j) - b_i -  <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
+                for ci in incoming:
+                    source, sink = ci.source, c.source
+                    i, j = tc.index(source), tc.index(sink)
+                    initial.addConstr(-l <= x[j] - x[i] - ci.lb, name = ci.get_description() + "lb")
+                    initial.addConstr(u <= x[i] - x[j] + ci.ub, name = ci.get_description() + "ub")
+            initial.addConstr(x[0] == 0)
+            initial.setObjective(sum([v for v in initial.getVars() if "_zu" in v.varName]) + sum([-v for v in initial.getVars() if "_zl" in v.varName]), GRB.MAXIMIZE)
+            initial.update()
+            initial.write("junk/initial.lp")
+            initial.optimize()
+            initial.write("junk/initial.sol")
+
+            # Adds initial approximation points
+            for c in self.sub_problems:
+                if isinstance(c, Correlation):
+                    # Initialises the inner approximation for each correlation
+                    c.approximation = {"points": [], "evaluation": []}
+                    # From the solution extracts the lower and upper bounds.
+                    l, u = [], []
+                    for constraint in c.constraints:
+                        li = initial.getVarByName(constraint.get_description() + "_zl").x
+                        ui = initial.getVarByName(constraint.get_description() + "_zu").x
+                        l.append(li)
+                        u.append(ui)
+                    c.approximation["points"].append((l, u))
+                    # Calculates probability and saves the value of -log(F(z))
+                    F = c.evaluate_probability(l, u)
+                    c.approximation["evaluation"].append(-log(F + 1e-9))
+                #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
+                elif isinstance(c, ProbabilisticConstraint):
+                    # Initialises the inner approximation
+                    c.approximation = {"points": [], "evaluation": []}
+                    l = initial.getVarByName(c.get_description() + "_zl").x
+                    u = initial.getVarByName(c.get_description() + "_zu").x
+                    # Adds approximation point
+                    c.approximation["points"].append((l, u))
+                    # Calculates probability and adds funtion evaluation
+                    F = c.evaluate_probability(l, u)
+                    c.approximation["evaluation"].append(-log(F + 1e-9))
     
     def build_initial_model(self):
         """
@@ -350,8 +417,11 @@ class PstnOptimisation(object):
             return f, status
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
+    
+    def compute_optimality_gap(self):
+        return (self.upper_bound - self.lower_bound)/self.lower_bound
 
-    def optimise(self, max_iterations: int = 30, tolerance = 1e-6):
+    def optimise(self, max_iterations: int = 30, tolerance: float = 0.05):
         """
         Finds schedule that optimises probability of success using column generation
         """
@@ -360,31 +430,39 @@ class PstnOptimisation(object):
         self.model = self.build_initial_model()
         self.solutions.append(Solution(self.network, self.model, time() - start))
         no_iterations = 1
+        self.upper_bound = self.model.objVal
 
-        function_values = []
+        lb = self.upper_bound
         # Solves the column generation problem for each sub problem.
         for sp in self.sub_problems:
             f, status = self.column_generation_problem(sp)
-            function_values.append(f)
+            lb += f
+        # If lower bound is better than current lower bound it updates.
+        if lb >= self.lower_bound:
+            self.lower_bound = lb
 
         # If all of the sub problems resulted in non-negative reduced cost we can terminate.
         # We define an alowable tolerance on the reduced cost which we check against.
-        while all(i > -tolerance for i in function_values) == False and no_iterations < max_iterations:
+        while self.compute_optimality_gap() > tolerance and no_iterations < max_iterations:
             no_iterations += 1
             # If not satisfied we can run the master problem with the new columns added
             self.model.update()
             self.model.write("junk/model{}.lp".format(no_iterations))
             self.model.optimize()
+            self.upper_bound = self.model.objVal
             self.model.write("junk/model{}.sol".format(no_iterations))
             self.solutions.append(Solution(self.network, self.model, time() - start))
 
-            function_values = []
+            lb = self.upper_bound
             # Solves the column generation problem for each sub problem.
             for sp in self.sub_problems:
                 f, status = self.column_generation_problem(sp)
-                function_values.append(f)
+                lb += f
+            # If lower bound is better than current lower bound it updates.
+            if lb >= self.lower_bound:
+                self.lower_bound = lb
         
-        if all(i > -tolerance for i in function_values) == True and self.model.status == GRB.OPTIMAL:
+        if self.compute_optimality_gap() <= tolerance and self.model.status == GRB.OPTIMAL:
             print("Optimisation terminated sucessfully")
             print('\n Objective: ', self.model.objVal)
             print("Probability: ", exp(-self.model.objVal))
