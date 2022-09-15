@@ -1,10 +1,12 @@
 
+from json.encoder import INFINITY
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint
 from pstnlib.temporal_networks.timepoint import TimePoint
 import subprocess
 from graphviz import Digraph
 import json
+import numpy as np
 inf = 1e9
 
 class ProbabilisticTemporalNetwork(TemporalNetwork):
@@ -51,7 +53,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 to_add = Constraint(source, sink, edge["label"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]})
             elif edge["type"] == "pstc":
                 to_add = ProbabilisticConstraint(source, sink, edge["label"], {"mean": edge["distribution"]["mean"], "sd": edge["distribution"]["sd"]})
-            self.add_constraint(to_add)
+            self.add_constraint(to_add)      
 
     
     def parse_uncertainties_from_json(self, file: json):
@@ -153,7 +155,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 time_point.controllable = False
             else:
                 time_point.controllable = True
-    
+
     def get_controllable_time_points(self) -> list[TimePoint]:
         """
         returns a list of controllable time-points
@@ -236,4 +238,79 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
             plot.render('junk/{}.png'.format(self.name), view=True)
         except subprocess.CalledProcessError:
             print("Please close the PDF and rerun the script")
+            
+    def simulate_execution(self, schedules) -> bool:
+        '''
+        Description: For a given schedule (or list of schedules) and PSTN, simulates execution of schedule once and returns True if successful (all constraints met)
+                    else returns False.
+        
+        Input:      PSTN:          Instance of PSTN class to be simulated
+                    schedules:     Schedules to simulate. Each schedule is a dictionary of timepoint id: value. If a list of schedules is passed it will test each.
+        Output:     bool:          True if successfully executed else False. returns a list of bools if a list of schedules is passed.
+        '''
+        # if multiple schedules are passed it tests all of them and returns a list of bools.
+        if isinstance(schedules, list):
+            toReturn = []
+            # samples outcome for probabilistic constraints and adds to each schedule.
+            for constraint in self.get_probabilistic_constraints():
+                sample = np.random.normal(constraint.mean, constraint.sd)
+                for schedule in schedules:
+                    schedule[str(constraint.sink.id)] = schedule[str(constraint.source.id)] + sample
+
+            toReturn = [True for i in range(len(schedules))]
+            # for each schedule finds out if any constraints are violated and if so saves False to return list, else saves True.
+            for schedule in schedules:
+                for constraint in self.constraints:
+                    if not isinstance(constraint, ProbabilisticConstraint):
+                        start, end = schedule[str(constraint.source.id)], schedule[str(constraint.sink.id)]
+                        if round(end - start, 10) < round(constraint.lb, 10) or round(end - start, 10) > round(constraint.ub, 10):
+                            toReturn[schedules.index(schedule)] = False
+            return toReturn
+
+        # Otherwise it only tests one and returns bool.
+        elif isinstance(schedules, dict):
+            for constraint in self.get_independent_probabilistic_constraints():
+                sample = np.random.normal(constraint.mean, constraint.sd)
+                schedule[str(constraint.sink.id)] = schedule[str(constraint.source.id)] + sample
+            # Finds out if any of the constraints are violated, if so returns False, else returns True  
+            for constraint in self.constraints:
+                if not isinstance(constraint, ProbabilisticConstraint):
+                    start, end = schedule[str(constraint.source.id)], schedule[str(constraint.sink.id)]
+                    if round(end - start, 10) < round(constraint.lb, 10) or round(end - start, 10) > round(constraint.ub, 10):
+                        return False
+            return True
+        else:
+            raise ValueError("Input parameter schedules must be either a list of dictionaries or a single dictionary.")
+
+    def monte_carlo(self, schedules, no_simulations: int = 10000) -> float:
+        '''
+        Description:    Simulates execution of schedules a set amount of times and return probability
+                        of successful execution (i.e. all constraints satisfied)
+        
+        Input:          schedules:      A schedule is a dictionary {timepoint0: time,...,timepointn: value} of time-point: time pairs.
+                                        Multiple schedules can be passed as a list.
+                        no_simulations: number of times to simulate execution
+        
+        Output:         float:          probability of success: no times successfully executed/total number of simulations
+        '''
+        # If a list of schedules is input.
+        if isinstance(schedules, list):
+            counts = [0 for i in range(len(schedules))]
+            for i in range(no_simulations):
+                result = self.simulate_execution(schedules)
+                for j in range(len(schedules)):
+                    if result[j] == True:
+                        counts[j] += 1
+            return [counts[i]/no_simulations for i in range(len(counts))]
+
+        # If a single schedule is input.
+        elif isinstance(schedules, dict):
+            count = 0
+            for i in range(no_simulations):
+                result = self.simulate_execution(schedules)
+                if result == True:
+                    count += 1
+            return count/no_simulations
+        else:
+            raise ValueError("Input parameter schedules must be either a list of dictionaries or a single dictionary.")
 

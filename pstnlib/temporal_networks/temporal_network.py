@@ -45,7 +45,6 @@ class TemporalNetwork:
         for timepoint in self.time_points:
             if not self.get_outgoing_edge_from_timepoint(timepoint):
                 self.add_constraint(Constraint(start, timepoint, "Deadline for Timepoint {}".format(timepoint.id), {"lb": 0, "ub": inf}))
-
     
     def parse_from_json(self, json_file):
         """
@@ -57,7 +56,7 @@ class TemporalNetwork:
         # Opens the json and extracts the nodes and edge data
         with open(json_file) as f:
             data = json.load(f)
-    
+        self.name = data["name"]
         nodes, edges = data["timepoints"], data["constraints"]
 
         # Adds the nodes and edges
@@ -174,7 +173,6 @@ class TemporalNetwork:
             if constraint.source.id not in network[constraint.sink.id]:
                 network[constraint.sink.id][constraint.source.id] = -constraint.lb
         return network
-
 
     def floyd_warshall(self) -> tuple[dict[TimePoint, dict], bool]:
         """
@@ -346,7 +344,7 @@ class TemporalNetwork:
         """
         if filename[-5:] != ".json":
             filename = filename + ".json"
-        toDump = {}
+        toDump = {"name": self.name}
         toDump["timepoints"] = [t.to_json() for t in self.time_points]
         toDump["constraints"] = [c.to_json() for c in self.constraints]
 

@@ -3,6 +3,7 @@ import copy
 from pstnlib.temporal_networks.timepoint import TimePoint
 from scipy import stats
 import numpy as np
+from pstnlib.optimisation.probabilities import rectangular_probability
 inf = 1000000000
 
 class Constraint:
@@ -86,8 +87,11 @@ class ProbabilisticConstraint(Constraint):
         """
         Calculates the probability F(u) - F(l), where F(z) is the cumulative probability function of the probabilistic constraint.
         """
-        distribution = stats.norm(self.mean, self.sd)
-        return distribution.cdf(u) - distribution.cdf(l)
+        z = np.array([u, -l])
+        mean = np.array([self.mean, -self.mean])
+        var = self.sd**2
+        cov = np.array([[var, -var], [-var, var]])
+        return stats.multivariate_normal(mean, cov, allow_singular=True).cdf(z)
 
     def evaluate_gradient(self, l, u):
         '''

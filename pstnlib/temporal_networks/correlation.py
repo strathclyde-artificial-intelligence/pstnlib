@@ -48,11 +48,11 @@ class Correlation:
         """
         # Checks dimensions of correlation matrix are correct
         assert np.shape(correlation)[0] == len(self.constraints) and np.shape(correlation)[1] == len(self.constraints), "Dimensions of correlation matrix are inconsistent with number of constraints. If n is number of constraints, correlation should be n x n array."
-        # Tries to make a multivariate normal distribution. This should raise a ValueError if correlation matrix is not positive-semidefinite
-        stats.multivariate_normal(self.mean, correlation)
         # If no errors, updates
         self.correlation = correlation
         self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
+        # Tries to make a multivariate normal distribution. This should raise a ValueError if correlation matrix is not positive-semidefinite
+        stats.multivariate_normal(self.mean, self.covariance)
     
     def add_random_correlation(self, eta = 0.5):
         """
@@ -61,28 +61,34 @@ class Correlation:
         Input:          eta:    Parameter - the larger eta is, the closer to the identity matrix will be the correlation matrix (more details see https://stats.stackexchange.com/questions/2746/how-to-efficiently-generate-random-positive-semidefinite-correlation-matrices)
         Output:         Correlation matrix
         """
+        result = False
         self.eta_used = eta
-        size = 1
-        n = len(self.constraints)
-        beta0 = eta - 1 + n/2
-        shape = n * (n-1) // 2
-        triu_ind = np.triu_indices(n, 1)
-        beta_ = np.array([beta0 - k/2 for k in triu_ind[0]])
-        # partial correlations sampled from beta dist.
-        P = np.ones((n, n) + (size,))
-        P[triu_ind] = stats.beta.rvs(a=beta_, b=beta_, size=(size,) + (shape,)).T
-        # scale partial correlation matrix to [-1, 1]
-        P = (P-.5)*2
-    
-        for k, i in zip(triu_ind[0], triu_ind[1]):
-            p = P[k, i]
-            for l in range(k-1, -1, -1):  # convert partial correlation to raw correlation
-                p = p * np.sqrt((1 - P[l, i]**2) *
-                                (1 - P[l, k]**2)) + P[l, i] * P[l, k]
-            P[k, i] = p
-            P[i, k] = p
-        self.correlation = np.transpose(P, (2, 0 ,1))[0]
-        self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
+        while result == False:
+            try:
+                size = 1
+                n = len(self.constraints)
+                beta0 = eta - 1 + n/2
+                shape = n * (n-1) // 2
+                triu_ind = np.triu_indices(n, 1)
+                beta_ = np.array([beta0 - k/2 for k in triu_ind[0]])
+                # partial correlations sampled from beta dist.
+                P = np.ones((n, n) + (size,))
+                P[triu_ind] = stats.beta.rvs(a=beta_, b=beta_, size=(size,) + (shape,)).T
+                # scale partial correlation matrix to [-1, 1]
+                P = (P-.5)*2
+                for k, i in zip(triu_ind[0], triu_ind[1]):
+                    p = P[k, i]
+                    for l in range(k-1, -1, -1):  # convert partial correlation to raw correlation
+                        p = p * np.sqrt((1 - P[l, i]**2) *
+                                        (1 - P[l, k]**2)) + P[l, i] * P[l, k]
+                    P[k, i] = p
+                    P[i, k] = p
+                self.correlation = np.transpose(P, (2, 0 ,1))[0]
+                self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
+                result = stats.multivariate_normal(self.mean, self.covariance)
+            except (np.linalg.LinAlgError, ValueError) as e:
+                print("Exception caught")
+                pass
     
     def evaluate_probability(self, l, u):
         """

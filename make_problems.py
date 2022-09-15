@@ -1,4 +1,4 @@
-from random_uncertainties import save_random_uncertainties, sample_probabilistic_constraints
+from random_generation import save_random_uncertainties, sample_probabilistic_constraints
 import os
 from otpl.plans.temporal_plan import PlanTemporalNetwork
 from otpl.pddl.parser import Parser
@@ -35,7 +35,6 @@ for d in successful:
     plans = path + "/plans/"
     # Loops through all plans in the directory
     for file in os.listdir(directory + d + "/plans"):
-        print(file)
         for token in file.split("_"):
             if "instance" in token:
                 problem_id = token
