@@ -1,6 +1,6 @@
 from typing import Dict
 from pstnlib.temporal_networks.constraint import Constraint
-from pstnlib.optimisation.probabilities import rectangular_probability
+from pstnlib.optimisation.probabilities import rectangular_probability, rectangular_gradient
 import numpy as np
 from scipy import stats
 from math import sqrt
@@ -87,7 +87,6 @@ class Correlation:
                 self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
                 result = stats.multivariate_normal(self.mean, self.covariance)
             except (np.linalg.LinAlgError, ValueError) as e:
-                print("Exception caught")
                 pass
     
     def evaluate_probability(self, l, u):
@@ -103,18 +102,9 @@ class Correlation:
         '''
         Calculates the gradient of the function F(u) - F(l).
         '''
-        dl, du = [], []
-        for i in range(len(self.mean)):
-            bar_mean = np.delete(self.mean, i)
-            bar_cov = np.delete(np.delete(self.covariance, i, 0), i, 1)
-            bar_l = np.delete(l, i)
-            bar_u = np.delete(u, i)
-            bar_F = rectangular_probability(bar_mean, bar_cov, bar_l, bar_u)
-            fl = stats.norm(self.mean[i], self.covariance[i, i]).pdf(l[i])
-            fu = stats.norm(self.mean[i], self.covariance[i, i]).pdf(u[i])
-            dl.append(-fl * bar_F)
-            du.append(fu * bar_F)
-        return (np.array(dl), np.array(du))
+        if type(l) == list and type(u) == list:
+            l, u = np.array(l), np.array(u)
+        return rectangular_gradient(self.mean, self.covariance, l, u)
 
     def add_approximation_point(self, l, u, phi):
         """

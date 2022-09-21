@@ -42,7 +42,7 @@ class Solution(object):
             schedule = {}
             for tp in self.network.get_controllable_time_points():
                 value = self.model.getVarByName(str(tp.id)).x
-                schedule[tp.id] = value
+                schedule[str(tp.id)] = value
             return schedule
         else:
             return None

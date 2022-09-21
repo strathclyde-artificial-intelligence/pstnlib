@@ -143,17 +143,16 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
     m.addConstr(gp.quicksum([v for v in m.getVars() if v.varName[-2:] in ["Fu", "Fl"]]) == risk, 'risk')
 
     m.update()
+    print("\nSolving: ", PSTN.name)
     m.optimize()
-
+    m.write("gurobi/{}.lp".format(m.getAttr("ModelName")))
     # Checks to see whether an optimal solution is found and if so it prints the solution and objective value
     if m.status == GRB.OPTIMAL:
+        m.write("gurobi/{}.sol".format(m.getAttr("ModelName")))
         print('\nObjective: ', m.objVal)
         print('\nVars:')
         for v in m.getVars():
             print("Variable {}: ".format(v.varName) + str(v.x))
-    else:
-        m.computeIIS()
-        m.write("logs/{}.ilp".format(PSTN.name))
     return m
         
         

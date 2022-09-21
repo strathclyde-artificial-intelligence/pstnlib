@@ -174,10 +174,10 @@ class TemporalNetwork:
                 network[constraint.sink.id][constraint.source.id] = -constraint.lb
         return network
 
-    def floyd_warshall(self) -> tuple[dict[TimePoint, dict], bool]:
+    def check_consistency(self) -> bool:
         """
-        use Floyd-Warshall to put the graph in all-pairs shortest path form.
-        returns tuple (APSP dictionary, boolean) where the boolean is True if the network is consistent (i.e. no negative cycles).
+        use Floyd-Warshall to check consistency by detecting negative cycles.
+        returns True if the network is consistent (i.e. no negative cycles).
         """
         adj = self.get_adjacency_matrix()
 
@@ -188,8 +188,32 @@ class TemporalNetwork:
                     adj[i][j] = min(adj[i][j], adj[i][k] + adj[k][j])
                     # check for negative cycles
                     if i==j and adj[i][j] < 0:
-                        return (adj, False)
-        return (adj, True)
+                        return False
+        return True
+
+    def floyd_warshall(self) -> tuple[dict[TimePoint, dict], bool]:
+        """
+        use Floyd-Warshall to put the graph in all-pairs shortest path form.
+        """
+        adj = self.get_adjacency_matrix()
+        consistent = True
+        # run Floyd-Warshall
+        for k in adj:
+            for i in adj:
+                for j in adj:
+                    adj[i][j] = min(adj[i][j], adj[i][k] + adj[k][j])
+                    # check for negative cycles
+                    if i==j and adj[i][j] < 0:
+                        consistent = False
+
+        # If consistent uses adjacency matrix to update edges.
+        if consistent == True:
+            for constraint in self.constraints:
+                ub = adj[constraint.source.id][constraint.sink.id]
+                lb = -adj[constraint.sink.id][constraint.source.id]
+                constraint.duration_bound = {"lb": lb, "ub": ub}
+        else:
+            print("Not consistent: not updating")
 
     def find_shortest_path(self, source : int, sink : int) -> float:
         """
