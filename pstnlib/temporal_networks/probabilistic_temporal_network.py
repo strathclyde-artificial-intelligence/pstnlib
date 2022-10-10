@@ -75,8 +75,8 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                         distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
                         new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
                         self.constraints[i] = new_constraint
-                    else:
-                        raise ValueError("Uncertainties already added to costraints.")
+                    # else:
+                    #     raise ValueError("Uncertainties already added to costraints.")
         for til in tils:
             for i in range(len(self.constraints)):
                 if til["name"] in self.constraints[i].label:
@@ -85,8 +85,8 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                         distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
                         new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
                         self.constraints[i] = new_constraint
-                    else:
-                        raise ValueError("Uncertainties already added to constraints.")
+                    # else:
+                    #     raise ValueError("Uncertainties already added to constraints.")
 
     def add_constraint(self, constraint: Constraint) -> None:
         """
@@ -155,6 +155,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 time_point.controllable = False
             else:
                 time_point.controllable = True
+
 
     def get_controllable_time_points(self) -> list[TimePoint]:
         """
@@ -233,7 +234,7 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         for constraint in requirements:
             plot.edge(str(constraint.source.id), str(constraint.sink.id), label="{}: [{}, {}]".format(constraint.label, constraint.lb, constraint.ub))
         for constraint in probabilistics:
-            plot.edge(str(constraint.source.id), str(constraint.sink.id), label="{}: N({}, {})".format(constraint.label, constraint.mean, constraint.sd))
+            plot.edge(str(constraint.source.id), str(constraint.sink.id), label="{}: N({}, {})".format(constraint.label, constraint.mean, constraint.sd), color='red')
         try:
             plot.render('junk/{}.png'.format(self.name), view=True)
         except subprocess.CalledProcessError:

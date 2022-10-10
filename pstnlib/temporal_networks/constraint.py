@@ -10,7 +10,7 @@ class Constraint:
     """
     represents a temporal network constraint (edge in the network)
     """
-    def __init__(self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict[str, str]):
+    def __init__(self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict):
         self.source = source
         self.sink = sink
         self.label = label
@@ -76,7 +76,7 @@ class ProbabilisticConstraint(Constraint):
         """
         return {"source": self.source.id, "sink": self.sink.id, "label": self.label, "type": self.type, "distribution": {"mean": self.mean, "sd": self.sd}}
 
-    def set_distribution(self, distribution: dict[str, str]) -> None:
+    def set_distribution(self, distribution: dict) -> None:
         """
         used to change the distribution of the edge if probabilistic
         """

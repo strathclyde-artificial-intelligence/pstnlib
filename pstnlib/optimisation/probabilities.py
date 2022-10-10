@@ -1,6 +1,7 @@
 from scipy import stats
 import numpy as np
 from math import log, sqrt
+
 inf = 1e9
 
 def rectangular_probability(mean: np.ndarray, cov: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:

@@ -111,5 +111,5 @@ def generate_random_stn(domain_f: str, problem_f: str, plan_f: str, n_constraint
     network.floyd_warshall()
     network.name = instance
     return network
-    
+
 

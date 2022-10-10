@@ -4,7 +4,9 @@ from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint
 import json
 import numpy as np
+from pstnlib.temporal_networks.numpy_encoder import NpEncoder
 
+np.set_printoptions(linewidth=160)
 class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
     """
     represents a correlated probabilistic temporal network.
@@ -108,7 +110,7 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         toDump["constraints"] = [c.to_json() for c in self.constraints]
         toDump["correlations"] = [c.to_json() for c in self.correlations]
         with open(filename, 'w') as fp:
-            json.dump(toDump, fp, indent=4, separators=(", ", ": "))
+            json.dump(toDump, fp, indent=4, separators=(", ", ": "), cls = NpEncoder)
     
     def get_json(self):
         toReturn = {"name": self.name}
@@ -174,3 +176,53 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
             return True
         else:
             raise ValueError("Input parameter schedules must be either a list of dictionaries or a single dictionary.")
+    
+    def calculate_trace(self) -> float:
+        """
+        Calculates the trace of the covariance matrix defining the random vector associated with the covariance matrix.
+        The trace is normalised by the number of dimensions in the distribution. This is used to measure the "overall"
+        variance of the matrix.
+        Larger values represent greater overall variance
+        """
+        # Initialises an n by n matrix where n is the number of probabilistic constraints.
+        size = len(self.get_probabilistic_constraints())
+        cov = np.zeros((size, size))
+        index = 0
+        # Adds the covariance matrix associated with each correlated outcome.
+        for correlation in self.correlations:
+            for row in range(np.shape(correlation.covariance)[0]):
+                for col in range(np.shape(correlation.covariance)[1]):
+                    cov[index + row, index + col] = correlation.covariance[row, col]
+            index += np.shape(correlation.covariance)[0]
+        independent_constraints = self.get_independent_probabilistic_constraints()
+        # Adds indepentdent probabilistic constraint variances on the diagonal.
+        for i in range(len(independent_constraints)):
+            cov[index + i, index + i] = independent_constraints[i].sd**2
+        return np.trace(cov)/size
+    
+    def calculate_generalized_variance(self) -> float:
+        """
+        Calculates the determinant of the correlation matrix. This is used to measure the "overall"
+        correlation of the matrix.
+        Larger values suggest little correlation, whereas smaller values represent larger correlation.
+        """
+        # Initialises an n by n matrix where n is the number of probabilistic constraints.
+        size = len(self.get_probabilistic_constraints())
+        corr = np.zeros((size, size))
+        index = 0
+        # Adds the covariance matrix associated with each correlated outcome.
+        for correlation in self.correlations:
+            for row in range(np.shape(correlation.correlation)[0]):
+                for col in range(np.shape(correlation.correlation)[1]):
+                    corr[index + row, index + col] = correlation.correlation[row, col]
+            index += np.shape(correlation.correlation)[0]
+        independent_constraints = self.get_independent_probabilistic_constraints()
+        # Adds indepentdent probabilistic constraint variances on the diagonal.
+        for i in range(len(independent_constraints)):
+            corr[index + i, index + i] = 1
+        return np.linalg.det(corr)
+ 
+                
+
+
+

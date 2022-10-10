@@ -7,6 +7,7 @@ from queue import PriorityQueue
 import json
 import subprocess
 from graphviz import Digraph
+from pstnlib.temporal_networks.numpy_encoder import NpEncoder
 
 inf = 1e9
 
@@ -373,4 +374,4 @@ class TemporalNetwork:
         toDump["constraints"] = [c.to_json() for c in self.constraints]
 
         with open(filename, 'w') as fp:
-            json.dump(toDump, fp, indent=4, separators=(", ", ": "))
+            json.dump(toDump, fp, indent=4, separators=(", ", ": "), cls=NpEncoder)

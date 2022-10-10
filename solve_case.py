@@ -5,12 +5,10 @@ from pstnlib.optimisation.solution import Solution
 import sys
 from time import time
 
-
 if __name__ == "__main__":
     """
     This script solves a case using column generation and LP and saves results
     """
-    print(sys.argv)
     # command line arguments
     if len(sys.argv) != 3:
         raise ValueError("Script should take two arguments:\n\t 1. The path to the network to be solved.\n\t 2. The path to the directory to store the result.")

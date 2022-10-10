@@ -41,15 +41,26 @@ def postprocess(directory: str):
             #     diff[key] = schedule_rmp[key] - schedule_lp[key]
             # print("\nDiff: ", diff)
             
+            schedules = []
+            # opens the network json and loads the cstn.
+            network = CorrelatedTemporalNetwork()
+            network.parse_from_json(directory + "/networks/" + file)
+            
+            schedule_rmp = result_rmp["schedule"]
+            schedule_lp = result_lp["schedule"]
+            
             # Gets experiment parameters from name
             result = {"Name": network.name}
             tokens = network.name.split("_")
             result["Domain"] = tokens[0]
             result["Instance"] = tokens[1][-1]
-            result["Network"] = tokens[3]
-            result["Uncertainties"] = tokens[5]
-            result["Correlation Size"] = tokens[7]
-            result["eta"] = tokens[9]
+            result["Deadline"] = tokens[4]
+            result["Mean Factor"] = tokens[7]
+            result["SD Factor"] = tokens[9]
+
+            result["Correlation Size"] = 5
+            result["Trace"] = network.calculate_trace()
+            result["Generalized Variance"] = network.calculate_generalized_variance()
 
             # # Simulates schedule of both RMP and LP using MC and saves results to list.
             if schedule_lp == None and schedule_rmp != None:
@@ -110,5 +121,5 @@ def postprocess(directory: str):
 
 
 if __name__ == "__main__":
-    directory = "temporal-planning-domains/rovers-metric-time-2006/"
+    directory = "temporal-planning-domains/individual_experiment/"
     postprocess(directory)

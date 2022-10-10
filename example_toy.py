@@ -1,92 +1,68 @@
-from otpl.pddl.parser import Parser
-from otpl.plans.temporal_plan import PlanTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
-from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
-from pstnlib.temporal_networks.temporal_network import TemporalNetwork
-from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.timepoint import TimePoint
 from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint
 from pstnlib.optimisation.pstn_optimisation_class import PstnOptimisation
-from pstnlib.optimisation.paris import paris
-from pstnlib.optimisation.solution import Solution
-from random_generation import generate_random_constraints, generate_random_stn, sample_probabilistic_constraints
+from pstnlib.temporal_networks.correlation import Correlation
 import numpy as np
-from time import time
-from graphviz import Digraph
-import os
-import random
+import csv
+
 inf = 1e9
 
-# # Makes timepoints and constraints.
-b0 = TimePoint(0, "Begin Travel 1")
-b1 = TimePoint(1, "End Travel 1")
-b2 = TimePoint(2, "Begin Travel 2")
-b3 = TimePoint(3, "End Travel 2")
-c1 = ProbabilisticConstraint(b0, b1, "Travel 1", {"mean": 60, "sd": 10})
-c2 = Constraint(b1, b2, "Collect", {"lb": 0, "ub": inf})
-c3 = ProbabilisticConstraint(b2, b3, "Travel 2", {"mean": 100, "sd": 25})
-c4 = Constraint(b0, b3, "Deadline", {"lb": 0, "ub": 160})
+sd1 = 10
+sd2 = 25
+ub = 200
 
-# # # # # Makes toy stn from paper
-# cstn = CorrelatedTemporalNetwork()
-# cstn.time_points = [b0, b1, b2, b3]
-# cstn.constraints = [c1, c2, c3, c4]
-# cstn.name = "toy_example"
-# cstn.plot_dot_graph()
+results = []
+# correlation_coefficients = np.array([0, 0.3, 0.6, 0.9])
+# deadline_factors = np.array([0.6, 0.7, 0.8, 0.9, 1.0,])
+# sd_factors = np.array([0.6, 0.8, 1, 1.2, 1.4])
+correlation_coefficients = np.array([0.9])
+deadline_factors = np.array([1])
+sd_factors = np.array([1.2])
+for coeff in correlation_coefficients:
+    for deadline in deadline_factors:
+        for sd in sd_factors:
+            result = {}
+            # # Makes timepoints and constraints.
+            b0 = TimePoint(0, "Begin Travel 1")
+            b1 = TimePoint(1, "End Travel 1")
+            b2 = TimePoint(2, "Begin Travel 2")
+            b3 = TimePoint(3, "End Travel 2")
+            c1 = ProbabilisticConstraint(b0, b1, "Travel 1", {"mean": 60, "sd": sd1 * sd})
+            c2 = Constraint(b1, b2, "Collect", {"lb": 0, "ub": inf})
+            c3 = ProbabilisticConstraint(b2, b3, "Travel 2", {"mean": 100, "sd": sd2 * sd})
+            c4 = Constraint(b0, b3, "Deadline", {"lb": ub * (1 - deadline), "ub": ub * deadline})
 
-# # Solves using column generation, assuming independence
-# op = PstnOptimisation(cstn, verbose=True)
-# op.optimise()
-# convex = op.solutions[-1]
-# convex_s = convex.get_schedule()
-# test_schedule = {"0": 0.0, "2": 62.0}
-# test_schedule_2 = {"0": 0.0, "2": 67.0}
-# schedules = [convex_s, test_schedule, test_schedule_2]
+            # Makes toy stn from paper while varying parameters
+            cstn = CorrelatedTemporalNetwork()
+            cstn.time_points = [b0, b1, b2, b3]
+            cstn.constraints = [c1, c2, c3, c4]
+            if coeff != 0:
+                corr = Correlation([c1, c3])
+                corr.add_correlation(np.array([[1, coeff],[coeff, 1]]))
+                cstn.add_correlation(corr)
 
-# # Gets Monte Carlo Probability
-# probs = cstn.monte_carlo(schedules)
+            cstn.name = "toy_corr_{}_deadline_{}_sd_{}".format(("").join(str(round(coeff, 2)).split(".")), ("").join(str(round(deadline, 2)).split(".")), ("").join(str(round(sd, 2)).split(".")))
+            cstn.save_as_json("temporal-planning-domains/toy/networks/{}".format(cstn.name))
+            result["name"] = cstn.name
+            result["correlation coefficient"] = coeff
+            result["deadline factor"] = deadline
+            result["sd"] = sd
 
-# print("\nPROBABILITY: ")
-# print("\tRMP: ", convex.get_probability())
+            # Solves using column generation and gets schedule
+            op = PstnOptimisation(cstn, verbose=True)
+            op.optimise()
+            convex = op.solutions[-1]
+            schedule = convex.get_schedule()
+            result["delta"] = schedule["2"] - schedule["0"]
+            result["probability"] = convex.get_probability()
+            # Gets monte-carlo probability
+            result["mc probability"] = cstn.monte_carlo(schedule)
+            results.append(result)
 
-# print("\nSchedule: ")
-# print("\tRMP: ", convex_s)
+keys = results[0].keys()
+with open("junk/results_toy.csv", "w", newline='') as f:
+    writer = csv.DictWriter(f, keys)
+    writer.writeheader()
+    writer.writerows(results)
 
-# print("\nMont Carlo:")
-# print("\tRMP: ", probs[0])
-# print("Delta = 62: ", probs[1])
-# print("Delta = 67: ", probs[2])
-
-# # Taking correlation into consideration
-cstn2 = CorrelatedTemporalNetwork()
-cstn2.time_points = [b0, b1, b2, b3]
-cstn2.constraints = [c1, c2, c3, c4]
-corr = Correlation([c1, c3])
-cstn2.add_correlation(corr)
-corr.add_correlation(np.array([[1.0, 0.9], [0.9, 1.0]]))
-cstn2.name = "toy_example_with_correlation"
-
-# Solves using column generation, assuming independence
-op = PstnOptimisation(cstn2, verbose=True)
-op.optimise()
-convex = op.solutions[-1]
-convex_s = convex.get_schedule()
-
-test_schedule = {"0": 0.0, "2": 62.0}
-test_schedule_2 = {"0": 0.0, "2": 64.0}
-test_schedule_3 = {"0": 0.0, "2": 67.0}
-schedules = [convex_s, test_schedule, test_schedule_2, test_schedule_3]
-
-# Gets Monte Carlo Probability
-probs = cstn2.monte_carlo(schedules)
-print("\nPROBABILITY: ")
-print("\tRMP: ", convex.get_probability())
-
-print("\nSchedule: ")
-print("\tRMP: ", convex_s)
-
-print("\nMont Carlo:")
-print("\tRMP: ", probs[0])
-print("\tDelta = 62: ", probs[1])
-print("\tDekta = 64: ", probs[2])
-print("\tDekta = 67: ", probs[3])

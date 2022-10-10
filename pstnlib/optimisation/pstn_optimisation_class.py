@@ -26,7 +26,7 @@ class PstnOptimisation(object):
     Description:    Class representing Probabilistic Temporal Network (or Correlated Temporal Network) SC as an optimisation problem of the form {min phi(z) | z <= Tx + q, Ax <= b} 
     Parameters:     network - Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
                     results - List of instances of optimisation_colution class for each iteration
-
+l
     """
     def __init__(self, network: ProbabilisticTemporalNetwork, verbose: bool = False) -> None:
         """
@@ -373,6 +373,14 @@ class PstnOptimisation(object):
                 grad = -dF/(F + 1e-18) - dual_z
                 print("Gradient:\t", grad) if self.verbose == True else None
                 return grad
+            
+            constrs = []
+            for i in range("number of dimensions in distribution"):
+                #constrs.append({'type': 'ineq', 'fun' : lambda x: l_j - u_j + epsilon, 'jac' : lambda x: *insert})
+                constrs.append({'type': 'ineq', 'fun' : lambda x: x[2*j] - x[j] + 0.001, 'jac' : lambda x: })
+            d_ = tuple(d)
+            c_tuple = c_,
+            d_ = d_ + c_tuple
 
             # # Adds bounds to prevent variables being non-negative
             bounds = [(-inf, inf), (-inf, inf)]
@@ -539,7 +547,7 @@ class PstnOptimisation(object):
         """
         if self.verbose == True:
             saved_stdout = sys.stdout
-            sys.stdout =  open("log_corr.txt", "w+")
+            sys.stdout =  open("log.txt", "w+")
 
         start = time()
         
@@ -547,7 +555,7 @@ class PstnOptimisation(object):
         print("\nAttempting to use PARIS to generate initial point.") if self.verbose == True else None
         self.heuristic_1()
         #print("\nAttempting to use other heuristic to generate innitial point.") if self.verbose == True else None
-        #self.heuristic_2()
+        self.heuristic_2()
         if self.verbose == True:
             print("\nInitial Approximation Points:")
             for c in self.sub_problems:
@@ -591,10 +599,10 @@ class PstnOptimisation(object):
                 print("Probability: ", exp(-self.model.objVal)) if self.verbose == True else None
                 print('\n Vars:') if self.verbose == True else None
                 for v in self.model.getVars():
-                    # if "_lam_" in v.varName and v.x == 0:
-                    #     continue
-                    # else:
-                    print("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
+                    if "_lam_" in v.varName and v.x == 0:
+                        continue
+                    else:
+                        print("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
             else:
                 print("Optimisation Failed") if self.verbose == True else None
                 self.model.computeIIS()
