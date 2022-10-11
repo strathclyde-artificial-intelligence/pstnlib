@@ -28,7 +28,7 @@ class Constraint:
         """
         returns a copy of the constraint
         """
-        return Constraint(self.source, self.sink, self.label[:], self.duration_bound)
+        return Constraint(self.source, self.sink, self.label[:], copy.deepcopy(self.duration_bound))
 
     def copy_as_probabilistic(self, distribution):
         """

@@ -1,8 +1,11 @@
 import json
+import re
 import sys
 from time import time
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 import csv
+import pandas as pd
+import os
 
 if __name__ == "__main__":
     """
@@ -43,12 +46,11 @@ if __name__ == "__main__":
     result["Domain"] = tokens[0]
     result["Instance"] = tokens[1][-1]
     result["Network"] = tokens[3]
-    result["Uncertainties"] = tokens[5]
-    result["Correlation Size"] = tokens[7]
+    result["Deadline"] = tokens[5]
     result["Trace"] = network.calculate_trace()
     result["Generalized Variance"] = network.calculate_generalized_variance()
 
-    # # Simulates schedule of both RMP and LP using MC and saves results to list.
+    # Simulates schedule of both RMP and LP using MC and saves results to list.
     if schedule_lp == None and schedule_rmp != None:
         schedules = schedule_rmp
         result["MC Probability LP"] = 0
@@ -80,9 +82,17 @@ if __name__ == "__main__":
     result["Theoretical Probability Delta"] = result["Theoretical Probability RMP"] - result["Theoretical Probability LP"]
     result["Runtime Delta"] = result["RMP Runtime"] - result["LP Runtime"]
     results.append(result)
+    
+    keys = results[0].keys()
+    if os.path.exists(csv_path):
+        # Tries to open with write - this should raise value error if file doesnt exist.
+        with open(csv_path, "a", newline='') as f:
+            writer = csv.DictWriter(f, keys)
+            writer.writerows(results)
+    else:
+        vals = result.values()
+        with open(csv_path, "w+", newline='') as f:
+            writer = csv.DictWriter(f, keys)
+            writer.writeheader()
+            writer.writerows(results)
 
-    keys = result.keys()
-    with open(csv_path, "a", newline='') as f:
-        writer = csv.DictWriter(f, keys)
-        #writer.writeheader()
-        writer.writerows(results)

@@ -25,6 +25,39 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         for constraint in network.constraints:
             self.add_constraint(constraint)
     
+    def copy(self):
+        copied_network = CorrelatedTemporalNetwork()
+        copied_timepoints = [t.copy() for t in self.time_points]
+        copied_constraints = []
+        # Copies the constraints.
+        for constraint in self.constraints:
+            for tp in copied_timepoints:
+                if tp.id == constraint.source.id:
+                    source = tp
+                elif tp.id == constraint.sink.id:
+                    sink = tp
+            if isinstance(constraint, ProbabilisticConstraint):
+                copied_constraints.append(ProbabilisticConstraint(source, sink, constraint.label[:], constraint.distribution.copy()))
+            else:
+                copied_constraints.append(Constraint(source, sink, constraint.label[:], constraint.duration_bound.copy()))
+        # Copies the correlations
+        copied_correlations = []
+        if self.correlations:
+            for corr in self.correlations:
+                correlated_constraints = [c for c in copied_constraints if c.get_description() in [c.get_description() for c in corr.constraints]]
+                correlation_matrix = corr.correlation
+                copied_correlation = Correlation(correlated_constraints)
+                copied_correlation.add_correlation(correlation_matrix)
+                copied_correlations.append(copied_correlation)
+        # Adds all of the copied data and returns
+        copied_network.time_points = copied_timepoints
+        copied_network.constraints = copied_constraints
+        copied_network.correlations = copied_correlations
+        if self.name != None:
+            copied_network.name = self.name[:]
+        return copied_network
+                
+
     def parse_from_json(self, json_file):
         """
         This function parses a JSON file and returns an instance of the temporal_network class.

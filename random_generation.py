@@ -4,8 +4,10 @@ from scipy import stats
 from otpl.pddl.parser import Parser
 import json
 from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
+from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
 from otpl.pddl.parser import Parser
 from otpl.plans.temporal_plan import PlanTemporalNetwork
 
@@ -81,7 +83,7 @@ def generate_random_constraints(network: TemporalNetwork, deadline: float, numbe
             consistent = True
     return network
 
-def generate_random_stn(domain_f: str, problem_f: str, plan_f: str, n_constraints: int):
+def generate_random_cstn(domain_f: str, problem_f: str, plan_f: str):
     """
     Generates a random simple temporal network in all pairs shortest path form from a given pddl domain, problem and plan.
     """
@@ -97,19 +99,23 @@ def generate_random_stn(domain_f: str, problem_f: str, plan_f: str, n_constraint
     deadline = plan.time_sorted_happenings[-1].time
 
     # parses simple temporal network and makes instance of temporal network
-    network = TemporalNetwork()
+    network = CorrelatedTemporalNetwork()
     network.parse_from_temporal_plan_network(plan.temporal_network)
 
-    # Adds a deadline to stop end time-points from taking inf value.
-    start_tp = network.get_timepoint_by_id(0)
-    for timepoint in network.time_points:
-        if not network.get_outgoing_edge_from_timepoint(timepoint):
-            network.add_constraint(Constraint(start_tp, timepoint, "Overall deadline", {"lb": 0, "ub": deadline * 1.5}))
-    network = generate_random_constraints(network, deadline, n_constraints)
+    # Generates and adds random uncertainties.
+    uncertainties = generate_random_uncertainties(domain_f, problem_f)
+    network.parse_uncertainties_from_dict(uncertainties)
 
-    # Computes APSP.
-    network.floyd_warshall()
-    network.name = instance
+    for constraint in network.constraints:
+        if "Deadline" in constraint.label:
+            constraint.duration_bound = {"lb": 0, "ub": deadline * 1.5}
+
+    # Generates and adds random correlation.
+    correlation_size = random.randint(2, 6)
+    correlated_constraints = sample_probabilistic_constraints(network, 1, correlation_size)[0]
+    corr = Correlation(correlated_constraints)
+    corr.add_random_correlation(eta = random.uniform(0.0, 1.0))
+    network.add_correlation(corr)
     return network
 
 

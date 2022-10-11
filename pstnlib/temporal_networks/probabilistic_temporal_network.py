@@ -53,8 +53,32 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 to_add = Constraint(source, sink, edge["label"], {"lb": edge["duration_bound"]["lb"], "ub": edge["duration_bound"]["ub"]})
             elif edge["type"] == "pstc":
                 to_add = ProbabilisticConstraint(source, sink, edge["label"], {"mean": edge["distribution"]["mean"], "sd": edge["distribution"]["sd"]})
-            self.add_constraint(to_add)      
+            self.add_constraint(to_add)
 
+    def parse_uncertainties_from_dict(self, uncertainties: dict):
+        """
+        Reads in a json of action and til uncertainties, such that the uncertainty x = sd/mean. Updates edges with
+        distributions and makes edges probabilistic. Returns a PSTN.
+        """
+        actions, tils = uncertainties["actions"], uncertainties["tils"]
+
+        for action in actions:
+            for i in range(len(self.constraints)):
+                if action["name"] in self.constraints[i].label:
+                    if self.constraints[i].type == "stc":
+                        # Replaces the simple temporal constraint with probabilistic version.
+                        distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
+                        new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
+                        self.constraints[i] = new_constraint
+
+        for til in tils:
+            for i in range(len(self.constraints)):
+                if til["name"] in self.constraints[i].label:
+                    if self.constraints[i].type == "stc":
+                        # Replaces the simple temporal constraint with probabilistic version.
+                        distribution = {"mean": self.constraints[i].ub * action["mean_fraction"], "sd": self.constraints[i].ub * action["sd_fraction"]}
+                        new_constraint = self.constraints[i].copy_as_probabilistic(distribution)
+                        self.constraints[i] = new_constraint
     
     def parse_uncertainties_from_json(self, file: json):
         """

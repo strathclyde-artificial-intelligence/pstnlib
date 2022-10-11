@@ -4,6 +4,7 @@ from pydoc import pathdirs
 from tabnanny import verbose
 from typing import NewType, runtime_checkable
 from unicodedata import name
+from xml.etree.ElementTree import TreeBuilder
 import numpy as np
 from math import log, exp
 from scipy import stats
@@ -25,17 +26,20 @@ class PstnOptimisation(object):
     """
     Description:    Class representing Probabilistic Temporal Network (or Correlated Temporal Network) SC as an optimisation problem of the form {min phi(z) | z <= Tx + q, Ax <= b} 
     Parameters:     network - Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
-                    results - List of instances of optimisation_colution class for each iteration
-l
+                    results - List of instances of optimisation_colution class for each iteration l
     """
-    def __init__(self, network: ProbabilisticTemporalNetwork, verbose: bool = False) -> None:
+    def __init__(self, network: ProbabilisticTemporalNetwork, verbose: bool = False, assume_independence: bool = False) -> None:
         """
         Parses the probablistic temporal network and generates initial approximation points.
         """
         self.verbose = verbose
         self.network = network
         if isinstance(network, CorrelatedTemporalNetwork):
-            self.correlated = True
+            if assume_independence != True:
+                self.correlated = True
+            else:
+                self.network.correlations = []
+                self.correlated = False
         else:
             self.correlated = False
 
@@ -374,19 +378,14 @@ l
                 print("Gradient:\t", grad) if self.verbose == True else None
                 return grad
             
-            constrs = []
-            for i in range("number of dimensions in distribution"):
-                #constrs.append({'type': 'ineq', 'fun' : lambda x: l_j - u_j + epsilon, 'jac' : lambda x: *insert})
-                constrs.append({'type': 'ineq', 'fun' : lambda x: x[2*j] - x[j] + 0.001, 'jac' : lambda x: })
-            d_ = tuple(d)
-            c_tuple = c_,
-            d_ = d_ + c_tuple
+            constrs = {'type': 'ineq', 'fun' : lambda x: np.array([-0.001 + x[0] - x[1]]), 'jac' : lambda x: np.array([1, -1])}
 
             # # Adds bounds to prevent variables being non-negative
-            bounds = [(-inf, inf), (-inf, inf)]
+            bounds = [(to_approximate.mean - 6 * to_approximate.sd, to_approximate.mean + 6 * to_approximate.sd), (to_approximate.mean - 6 * to_approximate.sd, to_approximate.mean + 6 * to_approximate.sd)]
 
             #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds, options = {'ftol' : 1e-6})
-            res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
+            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds = bounds)
             print("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
@@ -498,9 +497,21 @@ l
                 bounds[i] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
                 bounds[i + len(to_approximate.constraints)] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
 
+            constrs = []
+            for i in range(len(to_approximate.mean)):
+                index_u = i
+                index_l = i + len(to_approximate.mean)
+                jac = np.zeros(2 * len(to_approximate.mean))
+                jac[index_u] = 1
+                jac[index_l] = -1
+                constr = {'type': 'ineq', 'fun' : lambda x: -0.001 + x[index_u] - x[index_l], 'jac' : lambda x: jac}
+                constrs.append(constr)
+
+
             # Finds the column z that minimizes the dual.
             #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds, options = {'ftol' : 1e-6})
-            res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
+            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds = bounds)
             print("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
