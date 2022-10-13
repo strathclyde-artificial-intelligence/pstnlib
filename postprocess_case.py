@@ -44,9 +44,13 @@ if __name__ == "__main__":
     result = {"Name": network.name}
     tokens = network.name.split("_")
     result["Domain"] = tokens[0]
-    result["Instance"] = tokens[1][-1]
+    result["Instance"] = tokens[1][9:]
     result["Network"] = tokens[3]
     result["Deadline"] = tokens[5]
+    if network.correlations:
+        result["Correlation Size"] = max([len(correlation.constraints) for correlation in network.correlations])
+    else:
+        result["Correlation Size"] = 0
     result["Trace"] = network.calculate_trace()
     result["Generalized Variance"] = network.calculate_generalized_variance()
 
@@ -79,6 +83,10 @@ if __name__ == "__main__":
         result["RMP Runtime"] = result_rmp["runtime"]
 
     result["MC probability Delta"] = result["MC Probability RMP"] - result["MC Probability LP"]
+    try:
+        result["Percentage Improvement"] = (result["MC Probability RMP"] - result["MC Probability LP"])/result["MC Probability LP"] * 100
+    except:
+        result["Percentage Improvement"] = 0
     result["Theoretical Probability Delta"] = result["Theoretical Probability RMP"] - result["Theoretical Probability LP"]
     result["Runtime Delta"] = result["RMP Runtime"] - result["LP Runtime"]
     results.append(result)
