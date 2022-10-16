@@ -16,22 +16,22 @@ from graphviz import Digraph
 import os
 import random
 
-domain = "temporal-planning-domains/storage-temporal-satisficing-2014/domain.pddl"
-problem_dir = "temporal-planning-domains/storage-temporal-satisficing-2014/instances/"
-plan_dir = "temporal-planning-domains/storage-temporal-satisficing-2014/plans/"
-output_dir = "temporal-planning-domains/storage-temporal-satisficing-2014/networks/"
+domain = "temporal-planning-domains/satellite-temporal-satisficing-2014/domain.pddl"
+problem_dir = "temporal-planning-domains/satellite-temporal-satisficing-2014/instances/"
+plan_dir = "temporal-planning-domains/satellite-temporal-satisficing-2014/plans/"
+output_dir = "temporal-planning-domains/satellite-temporal-satisficing-2014/networks/"
 no_cstns = 20
-problems = ["instance-1.pddl", "instance-3.pddl", "instance-4.pddl", "instance-7.pddl", "instance-9.pddl"]
+problems = ["instance-1.pddl", "instance-2.pddl", "instance-3.pddl", "instance-4.pddl", "instance-5.pddl"]
 deadline_factors = np.array([0.6, 0.7, 0.8, 0.9, 1.0])
 
 for problem in problems:
     tokens = problem.split(".")
-    plan = "storage_{}_plan.pddl".format(tokens[0])
+    plan = "satellite_{}_plan.pddl".format(tokens[0])
     for i in range(1, no_cstns + 1):
         network = generate_random_cstn(domain, problem_dir + problem, plan_dir + plan)
         for factor in deadline_factors:
             cstn = network.copy()
-            cstn.name = "storage_{}_network_{}_deadline_{}".format(problem.split(".")[0], i, ("").join(str(round(factor, 1)).split(".")))
+            cstn.name = "satellite_{}_network_{}_deadline_{}".format(problem.split(".")[0], i, ("").join(str(round(factor, 1)).split(".")))
             for constraint in cstn.constraints:
                 if "Deadline" in constraint.label:
                     bound = constraint.ub

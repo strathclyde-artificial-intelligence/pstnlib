@@ -228,8 +228,9 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
         {"start": incoming, "end": incoming}, where if constraint is edge (i, j), start is the constraint (k, i) 
         and end is the constraint (k, j). If no incoming probabilistic at either, the value is set to None 
         """
+        self.set_controllability_of_time_points()
         if constraint.source.controllable == True and constraint.sink.controllable == True:
-            raise AttributeError("Constraint has no incoming contingent links")
+            return {"start": None, "end": None}
         else:
             incoming_source = [g for g in self.get_probabilistic_constraints() if g.sink == constraint.source]
             incoming_sink = [g for g in self.get_probabilistic_constraints() if g.sink == constraint.sink]

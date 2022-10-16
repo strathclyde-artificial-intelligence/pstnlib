@@ -38,7 +38,9 @@ class PstnOptimisation(object):
             if assume_independence != True:
                 self.correlated = True
             else:
+                self.network = self.network.copy()
                 self.network.correlations = []
+
                 self.correlated = False
         else:
             self.correlated = False
@@ -117,7 +119,7 @@ class PstnOptimisation(object):
                     c.approximation["points"].append((l, u))
                     # Calculates probability and saves the value of -log(F(z))
                     F = c.evaluate_probability(l, u)
-                    c.approximation["evaluation"].append(-log(F + 1e-18))
+                    c.approximation["evaluation"].append(-log(F))
                 #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
                 elif isinstance(c, ProbabilisticConstraint):
                     # From the solution extracts the lower and upper bounds.
@@ -126,7 +128,7 @@ class PstnOptimisation(object):
                     c.approximation["points"].append(bounds[c.get_description()])
                     # Calculates probability and adds funtion evaluation
                     F = c.evaluate_probability(l, u)
-                    c.approximation["evaluation"].append(-log(F + 1e-18))
+                    c.approximation["evaluation"].append(-log(F))
 
     def heuristic_2(self):
         """
@@ -154,24 +156,43 @@ class PstnOptimisation(object):
             # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
             l = initial.addVar(name = c.get_description() + "_zl", lb = c.mean - 6 * c.sd)
             u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
-            initial.addConstr(l + eps <= u, name = c.get_description() + "l_u")
+            initial.addConstr(l + 0.001 <= u, name = c.get_description() + "l_u")
             initial.update()
-            # Gets all uncontrollable constraints succeeding the probabilistic constraint.
-            outgoing = self.network.get_outgoing_uncontrollable_edge_from_timepoint(c.sink)
-            incoming = self.network.get_incoming_uncontrollable_edge_from_timepoint(c.sink)
-            # if constraint is the form l_ij <= bj - (b_i + X_i) <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-            for co in outgoing:
-                source, sink = c.source, co.sink
-                i = tc.index(source)
-                j = tc.index(sink)
-                initial.addConstr(-l <= x[i] - x[j] + co.ub, name = co.get_description() + "_lb")
-                initial.addConstr(u <= x[j] - x[i] - co.lb, name = co.get_description() + "_ub")
-            # if constraint is the form l_ij <= (b_j + X_j) - b_i -  <= u_ij, the uncontrollable constraint is pointing away from the uncontrollable timepoint
-            for ci in incoming:
-                source, sink = ci.source, c.source
-                i, j = tc.index(source), tc.index(sink)
-                initial.addConstr(-l <= x[j] - x[i] - ci.lb, name = ci.get_description() + "lb")
-                initial.addConstr(u <= x[i] - x[j] + ci.ub, name = ci.get_description() + "ub")
+        
+        cu = self.network.get_uncontrollable_constraints()
+        for c in cu:
+            incoming = self.network.get_incoming_probabilistic(c)
+            ## Start time-point in constraint is uncontrollable
+            if incoming["start"] != None and incoming["end"] == None:
+                incoming = incoming["start"]
+                start, end = initial.getVarByName(str(incoming.source.id)), initial.getVarByName(str(c.sink.id))
+                omega_l, omega_u = initial.getVarByName(incoming.get_description() + "_zl"), initial.getVarByName(incoming.get_description() + "_zu")
+                # For constraint of the form bj - bi - l_i <= u_{ij}
+                initial.addConstr(end - start - omega_l <= c.ub)
+                # For constraint of the form bj - bi - u_i >= l_{ij}
+                initial.addConstr(end - start - omega_u >= c.lb)
+
+            ## End time-point in constraint is uncontrollable
+            elif incoming["end"] != None and incoming["start"] == None:
+                incoming = incoming["end"]
+                start, end = initial.getVarByName(str(c.source.id)), initial.getVarByName(str(incoming.source.id))
+                omega_l, omega_u = initial.getVarByName(incoming.get_description() + "_zl"), initial.getVarByName(incoming.get_description() + "_zu")
+                # For constraint of the form b_j + u_j - b_i <= u_{ij}      
+                initial.addConstr(end - start + omega_u <= c.ub)        
+                # For constraint of the form b_j + l_j - b_i >= l_{ij}
+                initial.addConstr(end - start + omega_l >= c.lb)
+            # Both start and end timepoint is uncontrollable.
+            else:
+                incoming_start = incoming["start"]
+                incoming_end = incoming["end"]
+                start, end = initial.getVarByName(str(incoming_start.source.id)), initial.getVarByName(str(incoming_end.source.id))
+                omega_l_start, omega_u_start = initial.getVarByName(incoming_start.get_description() + "_zl"), initial.getVarByName(incoming_start.get_description() + "_zu")
+                omega_l_end, omega_u_end = initial.getVarByName(incoming_end.get_description() + "_zl"), initial.getVarByName(incoming_end.get_description() + "_zu")
+                # For constraint of the form b_j + u_j - (b_i + l_i) <= u_{ij}      
+                initial.addConstr(end + omega_u_end - start - omega_l_start <= c.ub)        
+                # For constraint of the form b_i + l_j - (b_i + u_i) >= l_{ij}
+                initial.addConstr(end + omega_l_end - start - omega_u_start >= c.lb)
+
         initial.addConstr(x[0] == 0)
         initial.setObjective(sum([v for v in initial.getVars() if "_zu" in v.varName]) + sum([-v for v in initial.getVars() if "_zl" in v.varName]), GRB.MAXIMIZE)
         initial.update()
@@ -192,7 +213,7 @@ class PstnOptimisation(object):
                     c.approximation["points"].append((l, u))
                     # Calculates probability and saves the value of -log(F(z))
                     F = c.evaluate_probability(l, u)
-                    c.approximation["evaluation"].append(-log(F + 1e-18))
+                    c.approximation["evaluation"].append(-log(F))
                 #For each of the probabilistic constraints that are independent (i.e. not involved in a correlation.)
                 elif isinstance(c, ProbabilisticConstraint):
                     # Initialises the inner approximation
@@ -202,7 +223,7 @@ class PstnOptimisation(object):
                     c.approximation["points"].append((l, u))
                     # Calculates probability and adds funtion evaluation
                     F = c.evaluate_probability(l, u)
-                    c.approximation["evaluation"].append(-log(F + 1e-18))
+                    c.approximation["evaluation"].append(-log(F))
 
     def build_initial_model(self):
         """
@@ -351,7 +372,7 @@ class PstnOptimisation(object):
                 print("u:\t", u) if self.verbose == True else None
                 prob = to_approximate.evaluate_probability(l, u)
                 print("Probability:\t", prob) if self.verbose == True else None
-                phi = -log(prob + 1e-18)
+                phi = -log(prob)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 print("Reduced cost:\t", dual) if self.verbose == True else None
                 # If reduced cost is less than zero we can add the column.
@@ -372,9 +393,9 @@ class PstnOptimisation(object):
                 u, l = z[0], z[1]
                 dF = np.array([distribution.pdf(u), -distribution.pdf(l)])
                 print("Gradient of Probability:\t", dF) if self.verbose == True else None
-                F = to_approximate.evaluate_probability(l, u) + 1e-18
+                F = to_approximate.evaluate_probability(l, u)
                 print("Probability used for gradient:\t", F) if self.verbose == True else None
-                grad = -dF/(F + 1e-18) - dual_z
+                grad = -dF/(F) - dual_z
                 print("Gradient:\t", grad) if self.verbose == True else None
                 return grad
             
@@ -385,7 +406,7 @@ class PstnOptimisation(object):
 
             #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds, options = {'ftol' : 1e-6})
             #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
-            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds = bounds)
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds=bounds)
             print("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
@@ -395,7 +416,7 @@ class PstnOptimisation(object):
             if add_intermediate_points == False:
                 z = res.x
                 u, l = z[0], z[1]
-                phi_v = -log(to_approximate.evaluate_probability(l, u) + 1e-18)
+                phi_v = -log(to_approximate.evaluate_probability(l, u))
                 toAdd = to_approximate.add_approximation_point(l, u, phi_v)
                 if toAdd == True:
                     # Gets equivalent z and adds to gurobi model.
@@ -451,7 +472,7 @@ class PstnOptimisation(object):
                 print("u:\t", u) if self.verbose == True else None
                 prob = to_approximate.evaluate_probability(l, u)
                 print("Probability:\t", prob) if self.verbose == True else None
-                phi = -log(prob + 1e-18)
+                phi = -log(prob)
                 print("Phi:\t", phi) if self.verbose == True else None
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
                 print("Reduced cost:\t", dual) if self.verbose == True else None
@@ -485,33 +506,43 @@ class PstnOptimisation(object):
                 dl, du = to_approximate.evaluate_gradient(l, u)
                 dF = np.concatenate((du, dl))
                 print("Gradient of Probability:\t", dF) if self.verbose == True else None
-                F = to_approximate.evaluate_probability(l, u) + 1e-18
+                F = to_approximate.evaluate_probability(l, u)
                 print("Probability used for gradient:\t", F) if self.verbose == True else None
-                grad = -dF/(F + 1e-18) - dual_z
+                grad = -dF/(F) - dual_z
                 print("Gradient:\t", grad) if self.verbose == True else None
                 return grad
+            
+            def limit_constraint(z):
+                """
+                Constraint used to bound u - l >= epsilon. This prevents math domain errors of log(0) by keeping the probability within a small threshold
+                """
+                u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
+                epsilon = np.empty(len(u)) 
+                epsilon.fill(0.001)
+                return u - l - epsilon
+            
+            def constraint_jacobian(z):
+                """
+                Jacobian matrix for limit_constraint
+                """
+                u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
+                J = np.zeros([len(u), len(z)])
+                for i in range(len(u)):
+                    for j in range(len(u)):
+                        J[i, j] = 1
+                        J[i, j + len(u)] = -1
+                return J
+
 
             # Adds bounds to prevent variables being non-negative
             bounds = [None] * 2 * len(to_approximate.constraints)
             for i in range(len(to_approximate.constraints)):
-                bounds[i] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
-                bounds[i + len(to_approximate.constraints)] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
+               bounds[i] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
+               bounds[i + len(to_approximate.constraints)] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
 
-            constrs = []
-            for i in range(len(to_approximate.mean)):
-                index_u = i
-                index_l = i + len(to_approximate.mean)
-                jac = np.zeros(2 * len(to_approximate.mean))
-                jac[index_u] = 1
-                jac[index_l] = -1
-                constr = {'type': 'ineq', 'fun' : lambda x: -0.001 + x[index_u] - x[index_l], 'jac' : lambda x: jac}
-                constrs.append(constr)
-
-
+            con = {'type': 'ineq', "fun": limit_constraint, "jac": constraint_jacobian}
             # Finds the column z that minimizes the dual.
-            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds, options = {'ftol' : 1e-6})
-            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
-            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds = bounds)
+            res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = con, bounds=bounds)
             print("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
@@ -521,7 +552,7 @@ class PstnOptimisation(object):
             if add_intermediate_points == False:
                 z = res.x
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
-                phi_v = -log(to_approximate.evaluate_probability(l, u) + 1e-18)
+                phi_v = -log(to_approximate.evaluate_probability(l, u))
                 toAdd = to_approximate.add_approximation_point(l, u, phi_v)
                 # Add to gurobi model.
                 if toAdd == True:
@@ -589,9 +620,8 @@ class PstnOptimisation(object):
             f, status = self.column_generation_problem(sp)
             lb += f
             statuses.append(status)
-        # If lower bound is better than current lower bound it updates.
-        if lb >= self.lower_bound and all(statuses) == True:
-            self.lower_bound = lb
+        # Sets initial lower bound.
+        self.lower_bound = lb
 
         # If all of the sub problems resulted in non-negative reduced cost we can terminate.
         # We define an alowable tolerance on the reduced cost which we check against.

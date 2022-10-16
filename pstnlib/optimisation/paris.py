@@ -103,24 +103,35 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
     for c in cu:
         incoming = PSTN.get_incoming_probabilistic(c)
         ## Start time-point in constraint is uncontrollable
-        if incoming["start"] != None:
+        if incoming["start"] != None and incoming["end"] == None:
             incoming = incoming["start"]
             start, end = m.getVarByName(str(incoming.source.id)), m.getVarByName(str(c.sink.id))
             omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-            # For constraint of the form bj - bi - l_i <= y_{ij}
+            # For constraint of the form bj - bi - l_i <= u_{ij}
             m.addConstr(end - start - omega_l <= c.ub)
-            # For constraint of the form bi - bj + u_i <= -x_{ij}
+            # For constraint of the form bj - bi - u_i >= l_{ij}
             m.addConstr(end - start - omega_u >= c.lb)
 
         ## End time-point in constraint is uncontrollable
-        elif incoming["end"] != None:
+        elif incoming["end"] != None and incoming["start"] == None:
             incoming = incoming["end"]
             start, end = m.getVarByName(str(c.source.id)), m.getVarByName(str(incoming.source.id))
             omega_l, omega_u = m.getVarByName(incoming.get_description() + "_l"), m.getVarByName(incoming.get_description() + "_u")
-            # For constraint of the form b_j + u_{ij} - b_i <= y_{ij}      
+            # For constraint of the form b_j + u_j - b_i <= u_{ij}      
             m.addConstr(end - start + omega_u <= c.ub)        
-            # For constraint of the form b_i - bj - l_{ij} <= -x_{ij}
+            # For constraint of the form b_j + l_j - b_i >= l_{ij}
             m.addConstr(end - start + omega_l >= c.lb)
+        # Both start and end timepoint is uncontrollable.
+        else:
+            incoming_start = incoming["start"]
+            incoming_end = incoming["end"]
+            start, end = m.getVarByName(str(incoming_start.source.id)), m.getVarByName(str(incoming_end.source.id))
+            omega_l_start, omega_u_start = m.getVarByName(incoming_start.get_description() + "_l"), m.getVarByName(incoming_start.get_description() + "_u")
+            omega_l_end, omega_u_end = m.getVarByName(incoming_end.get_description() + "_l"), m.getVarByName(incoming_end.get_description() + "_u")
+            # For constraint of the form b_j + u_j - (b_i + l_i) <= u_{ij}      
+            m.addConstr(end + omega_u_end - start - omega_l_start <= c.ub)        
+            # For constraint of the form b_i + l_j - (b_i + u_i) >= l_{ij}
+            m.addConstr(end + omega_l_end - start - omega_u_start >= c.lb)
 
     # Adds piecewise linear approximation of probabilistic constraints.
     for c in cp:

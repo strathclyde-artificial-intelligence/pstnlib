@@ -1,15 +1,17 @@
 import random
+from xml.dom.minidom import Attr
 import numpy as np
 from scipy import stats
 from otpl.pddl.parser import Parser
 import json
 from pstnlib.temporal_networks.constraint import Constraint
+from pstnlib.temporal_networks.timepoint import TimePoint
 from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlated_temporal_network import CorrelatedTemporalNetwork
-from otpl.pddl.parser import Parser
 from otpl.plans.temporal_plan import PlanTemporalNetwork
+inf = 1000000000
 
 def generate_random_uncertainties(domain_file: str, problem_file: str) -> dict:
     """
@@ -105,6 +107,19 @@ def generate_random_cstn(domain_f: str, problem_f: str, plan_f: str):
     # Generates and adds random uncertainties.
     uncertainties = generate_random_uncertainties(domain_f, problem_f)
     network.parse_uncertainties_from_dict(uncertainties)
+
+    # If both start and end timepoints are uncontrollable it decomposes the constraint containing the beginning timepoint.
+    for constraint in network.get_requirement_constraints():
+        incoming = network.get_incoming_probabilistic(constraint)
+        if incoming["start"] != None and incoming["end"] != None:
+            # Make new controllable timepoint
+            index = max([t.id for t in network.time_points]) + 1
+            intermediate_timepoint_start = TimePoint(index, "Intermediate timepoint {}".format(index))
+            network.add_time_point(intermediate_timepoint_start)
+            # Udates probabilistic sink to new timepoint
+            incoming["start"].sink = intermediate_timepoint_start
+            # Makes constraint between probabilistic sink and uncontrollable start
+            network.add_constraint(Constraint(intermediate_timepoint_start, constraint.source, "Intermediate constraint added for {}".format(constraint.get_description()), {"lb": 0, "ub": inf}))
 
     for constraint in network.constraints:
         if "Deadline" in constraint.label:
