@@ -12,11 +12,12 @@ class Solution(object):
     Parameters:     model - Gurobi model instance containing solution.
                     runtime - cumulative runtime of current iteration.
     """
-    def __init__(self, network, model, runtime) -> None:
+    def __init__(self, network, model, runtime, bound = None) -> None:
         self.network = network
         self.model = model
         self.runtime = runtime
         self.experimental_probability = None
+        self.bound = bound
     
     def get_probability(self) -> float:
         """

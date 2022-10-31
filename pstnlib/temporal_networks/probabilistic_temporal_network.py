@@ -327,7 +327,8 @@ class ProbabilisticTemporalNetwork(TemporalNetwork):
                 for j in range(len(schedules)):
                     if result[j] == True:
                         counts[j] += 1
-            return [counts[i]/no_simulations for i in range(len(counts))]
+            probs = [counts[i]/no_simulations for i in range(len(counts))]
+            return probs
 
         # If a single schedule is input.
         elif isinstance(schedules, dict):

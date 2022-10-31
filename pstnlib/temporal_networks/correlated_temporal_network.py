@@ -184,8 +184,9 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
                 for constraint in self.constraints:
                     if not isinstance(constraint, ProbabilisticConstraint):
                         start, end = schedules[i][str(constraint.source.id)], schedules[i][str(constraint.sink.id)]
+                        #print("Source", constraint.source.id, "Sink", constraint.sink.id)
                         #print("Value: ", end - start)
-                        if round(end - start, 10) < round(constraint.lb, 10) or round(end - start, 10) > round(constraint.ub, 10):
+                        if round(end - start, 6) < round(constraint.lb, 6) or round(end - start, 6) > round(constraint.ub, 6):
                             #print("Constraint violated: ", constraint.source.id, constraint.sink.id, constraint.duration_bound)
                             toReturn[i] = False
             #print("\n", toReturn)
@@ -254,6 +255,18 @@ class CorrelatedTemporalNetwork(ProbabilisticTemporalNetwork):
         for i in range(len(independent_constraints)):
             corr[index + i, index + i] = 1
         return np.linalg.det(corr)
+    
+    def get_largest_correlation_coefficient(self) -> float:
+        """
+        Finds the largest absolute correlation coefficient amongst all the networks correlations.
+        """
+        largest = 0
+        for correlation in self.correlations:
+            for i in range(len(correlation.constraints)):
+                for j in range(len(correlation.constraints)):
+                    if correlation.correlation[i, j] != 1 and abs(correlation.correlation[i, j]) > largest:
+                        largest = abs(correlation.correlation[i, j])
+        return largest
  
                 
 

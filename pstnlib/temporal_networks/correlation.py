@@ -54,40 +54,18 @@ class Correlation:
         # Tries to make a multivariate normal distribution. This should raise a ValueError if correlation matrix is not positive-semidefinite
         stats.multivariate_normal(self.mean, self.covariance)
     
-    def add_random_correlation(self, eta = 0.5):
+    def add_random_correlation(self):
         """
         Description:    Code for generating random positive semidefinite correlation matrices. Taken from https://gist.github.com/junpenglao/b2467bb3ad08ea9936ddd58079412c1a
                         based on code from "Generating random correlation matrices based on vines and extended onion method", Daniel Lewandowski, Dorots Kurowicka and Harry Joe, 2009.
         Input:          eta:    Parameter - the larger eta is, the closer to the identity matrix will be the correlation matrix (more details see https://stats.stackexchange.com/questions/2746/how-to-efficiently-generate-random-positive-semidefinite-correlation-matrices)
         Output:         Correlation matrix
         """
-        result = False
-        self.eta_used = eta
-        while result == False:
-            try:
-                size = 1
-                n = len(self.constraints)
-                beta0 = eta - 1 + n/2
-                shape = n * (n-1) // 2
-                triu_ind = np.triu_indices(n, 1)
-                beta_ = np.array([beta0 - k/2 for k in triu_ind[0]])
-                # partial correlations sampled from beta dist.
-                P = np.ones((n, n) + (size,))
-                P[triu_ind] = stats.beta.rvs(a=beta_, b=beta_, size=(size,) + (shape,)).T
-                # scale partial correlation matrix to [-1, 1]
-                P = (P-.5)*2
-                for k, i in zip(triu_ind[0], triu_ind[1]):
-                    p = P[k, i]
-                    for l in range(k-1, -1, -1):  # convert partial correlation to raw correlation
-                        p = p * np.sqrt((1 - P[l, i]**2) *
-                                        (1 - P[l, k]**2)) + P[l, i] * P[l, k]
-                    P[k, i] = p
-                    P[i, k] = p
-                self.correlation = np.transpose(P, (2, 0 ,1))[0]
-                self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
-                result = stats.multivariate_normal(self.mean, self.covariance)
-            except (np.linalg.LinAlgError, ValueError) as e:
-                pass
+        random_array = np.random.rand(len(self.constraints))
+        eigs = random_array/sum(random_array)*  len(self.constraints)
+        correlation = stats.random_correlation.rvs(eigs).round(decimals=4)
+        self.correlation = correlation
+        self.covariance = self.auxiliary @ self.correlation @ self.auxiliary.transpose()
     
     def evaluate_probability(self, l, u):
         """

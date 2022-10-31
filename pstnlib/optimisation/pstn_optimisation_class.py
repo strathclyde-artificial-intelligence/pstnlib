@@ -1,4 +1,5 @@
 from calendar import c
+from multiprocessing.sharedctypes import Value
 from multiprocessing.synchronize import BoundedSemaphore
 from pydoc import pathdirs
 from tabnanny import verbose
@@ -106,7 +107,7 @@ class PstnOptimisation(object):
                         l = curr_l
                     if curr_u < u:
                         u = curr_u
-                bounds[c.get_description()] = (max(c.mean - 6 * c.sd, l), min(c.mean + 6 * c.sd, u))
+                bounds[c.get_description()] = (max(c.mean - 4 * c.sd, l), min(c.mean + 4 * c.sd, u))
             for c in self.sub_problems:
                 if isinstance(c, Correlation):
                     # From the solution extracts the lower and upper bounds.
@@ -153,9 +154,9 @@ class PstnOptimisation(object):
 
         cp = self.network.get_probabilistic_constraints()
         for c in cp:
-            # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 6 standard deviations of mean
-            l = initial.addVar(name = c.get_description() + "_zl", lb = c.mean - 6 * c.sd)
-            u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 6* c.sd)
+            # Adds a variable for the lower and upper bound on the cdf. Neglects probability mass outiwth 4 standard deviations of mean
+            l = initial.addVar(name = c.get_description() + "_zl", lb = c.mean - 4 * c.sd)
+            u = initial.addVar(name = c.get_description() + "_zu", ub = c.mean + 4* c.sd)
             initial.addConstr(l + 0.001 <= u, name = c.get_description() + "l_u")
             initial.update()
         
@@ -399,13 +400,11 @@ class PstnOptimisation(object):
                 print("Gradient:\t", grad) if self.verbose == True else None
                 return grad
             
-            constrs = {'type': 'ineq', 'fun' : lambda x: np.array([-0.001 + x[0] - x[1]]), 'jac' : lambda x: np.array([1, -1])}
+            constrs = {'type': 'ineq', 'fun' : lambda x: np.array([-0.01 + x[0] - x[1]]), 'jac' : lambda x: np.array([1, -1])}
 
             # # Adds bounds to prevent variables being non-negative
-            bounds = [(to_approximate.mean - 6 * to_approximate.sd, to_approximate.mean + 6 * to_approximate.sd), (to_approximate.mean - 6 * to_approximate.sd, to_approximate.mean + 6 * to_approximate.sd)]
+            bounds = [(to_approximate.mean - 4 * to_approximate.sd, to_approximate.mean + 4 * to_approximate.sd), (to_approximate.mean - 4 * to_approximate.sd, to_approximate.mean + 4 * to_approximate.sd)]
 
-            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B", bounds = bounds, options = {'ftol' : 1e-6})
-            #res = optimize.minimize(dualf, z0, jac = gradf, method = "L-BFGS-B")
             res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds=bounds)
             print("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
@@ -518,7 +517,7 @@ class PstnOptimisation(object):
                 """
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 epsilon = np.empty(len(u)) 
-                epsilon.fill(0.001)
+                epsilon.fill(0.01)
                 return u - l - epsilon
             
             def constraint_jacobian(z):
@@ -537,8 +536,8 @@ class PstnOptimisation(object):
             # Adds bounds to prevent variables being non-negative
             bounds = [None] * 2 * len(to_approximate.constraints)
             for i in range(len(to_approximate.constraints)):
-               bounds[i] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
-               bounds[i + len(to_approximate.constraints)] = (to_approximate.constraints[i].mean - 6 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 6 * to_approximate.constraints[i].sd)
+               bounds[i] = (to_approximate.constraints[i].mean - 4 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 4 * to_approximate.constraints[i].sd)
+               bounds[i + len(to_approximate.constraints)] = (to_approximate.constraints[i].mean - 4 * to_approximate.constraints[i].sd, to_approximate.constraints[i].mean + 4 * to_approximate.constraints[i].sd)
 
             con = {'type': 'ineq', "fun": limit_constraint, "jac": constraint_jacobian}
             # Finds the column z that minimizes the dual.
@@ -608,7 +607,7 @@ class PstnOptimisation(object):
         # Solves restricted master problem using initial points and saves solution.
         print("\nBuilding initial model.") if self.verbose == True else None
         self.model = self.build_initial_model()
-        self.solutions.append(Solution(self.network, self.model, time() - start))
+        self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
         no_iterations = 1
         self.upper_bound = self.model.objVal
         
@@ -617,15 +616,22 @@ class PstnOptimisation(object):
         # Solves the column generation problem for each sub problem.
         for sp in self.sub_problems:
             print("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
-            f, status = self.column_generation_problem(sp)
-            lb += f
-            statuses.append(status)
-        # Sets initial lower bound.
-        self.lower_bound = lb
+            try:
+                f, status = self.column_generation_problem(sp)
+                lb += f
+                statuses.append(status)
+            except ValueError:
+                f, status = -inf, False
+                lb += f
+                statuses.append(status)
+        # If lower bound is better than current lower bound it updates.
+        if lb >= self.lower_bound and all(statuses) == True:
+            self.lower_bound = lb
+        bound = self.compute_optimality_gap()
 
         # If all of the sub problems resulted in non-negative reduced cost we can terminate.
         # We define an alowable tolerance on the reduced cost which we check against.
-        while self.compute_optimality_gap() > tolerance and no_iterations < max_iterations:
+        while (bound > tolerance or bound < 0) and no_iterations < max_iterations:
             no_iterations += 1
             # If not satisfied we can run the master problem with the new columns added
             self.model.update()
@@ -651,21 +657,28 @@ class PstnOptimisation(object):
                 raise ValueError("Optimisation failed")
 
             self.upper_bound = self.model.objVal
-            self.solutions.append(Solution(self.network, self.model, time() - start))
+            print("UPDATING UPPER BOUND: ", self.model.objVal)
+            self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
 
             lb = self.upper_bound
             statuses = []
             # Solves the column generation problem for each sub problem.
             for sp in self.sub_problems:
                 print("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
-                f, status = self.column_generation_problem(sp)
-                lb += f
-                statuses.append(status)
+                try:
+                    f, status = self.column_generation_problem(sp)
+                    lb += f
+                    statuses.append(status)
+                except ValueError:
+                    f, status = -inf, False
+                    lb += f
+                    statuses.append(status)
             # If lower bound is better than current lower bound it updates.
             if lb >= self.lower_bound and all(statuses) == True:
                 self.lower_bound = lb
-        
-        if self.compute_optimality_gap() <= tolerance and self.model.status == GRB.OPTIMAL:
+            bound = self.compute_optimality_gap()
+
+        if (bound <= tolerance and bound > 0) and self.model.status == GRB.OPTIMAL:
             print("Final Optimisation terminated sucessfully")
             print('\n Objective: ', self.model.objVal)
             print("Probability: ", exp(-self.model.objVal))

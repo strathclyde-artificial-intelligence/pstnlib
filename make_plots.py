@@ -2,10 +2,16 @@ import pandas as pd
 from matplotlib import axes, pyplot as plt
 import numpy as np
 import seaborn as sns
+colors = ["tab:blue", "tab:orange", "tab:red", "tab:purple", "tab:green", "tab:cyan"]
+markers = ["o", "x", "v", "+", "^"]
 # Reads the results to a pandas dataframe
 df = pd.read_csv("results.csv")
 # Deletes rows where both LP and RMP do not return a solution.
 df = df.loc[~((df['MC Probability LP'] == 0) & (df['MC Probability RMP'] == 0)),:]
+df = df.dropna()
+# Delets rows where probbaility is negligible.
+df = df.loc[(df['Theoretical Probability Correlated'] > 0.01),:]
+
 # Plots scatter plot of probability versus percentage improvement
 fig = plt.figure()
 plt.scatter(df["MC Probability LP"], df["Percentage Improvement"], marker="x")
