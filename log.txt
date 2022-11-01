@@ -330,3 +330,328 @@ INFO:root:Variable 0: 0.0
 INFO:root:Variable 2: 67.24034074682977
 INFO:root:Variable c(2,3)_lam_13: 1.0
 INFO:root:Variable c(0,1)_lam_10: 1.0
+INFO:root: Attempting to use PARIS to generate initial point.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+DEBUG:root: Approximation points:
+DEBUG:root:Corr((0,1),(2,3)), {'points': [([20, 0], [60.0, 100.0]), ([20.0, 0.0], [20.001, 139.999])], 'evaluation': [0.8482198364858882, 18.32676262892372]}
+INFO:root:
+Building initial model.
+INFO:root:
+Initial model built, solving:
+INFO:root:
+Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 60.0
+INFO:root:Variable Corr((0,1),(2,3))_lam_0: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for Corr((0,1),(2,3)) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+################ Solving RMP in Iteration 2. ###################
+
+INFO:root:Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 60.0
+INFO:root:Variable Corr((0,1),(2,3))_lam_0: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for Corr((0,1),(2,3)) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+################ Solving RMP in Iteration 3. ###################
+
+INFO:root:Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 61.22946618207217
+INFO:root:Variable Corr((0,1),(2,3))_lam_4: 0.4602714298665963
+INFO:root:Variable Corr((0,1),(2,3))_lam_27: 0.5397285701334037
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for Corr((0,1),(2,3)) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:Final Optimisation terminated sucessfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 61.22946618207217
+INFO:root:Variable Corr((0,1),(2,3))_lam_4: 0.4602714298665963
+INFO:root:Variable Corr((0,1),(2,3))_lam_27: 0.5397285701334037
+INFO:root: Attempting to use PARIS to generate initial point.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+DEBUG:root: Approximation points:
+DEBUG:root:c(0,1), {'points': [(20, 60.0), (20.0, 20.001)], 'evaluation': [0.6932105250498314, 18.12907890017548]}
+DEBUG:root:c(2,3), {'points': [(0, 100.0), (0.0, 139.999)], 'evaluation': [0.6932105250498314, 0.05639618667370034]}
+INFO:root:
+Building initial model.
+INFO:root:
+Initial model built, solving:
+INFO:root:
+Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 60.0
+INFO:root:Variable c(0,1)_lam_0: 1.0
+INFO:root:Variable c(2,3)_lam_0: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for c(0,1) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+############### Solving column generation problem for c(2,3) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+################ Solving RMP in Iteration 2. ###################
+
+INFO:root:Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 60.0
+INFO:root:Variable c(0,1)_lam_0: 1.0
+INFO:root:Variable c(2,3)_lam_0: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for c(0,1) ###############
+INFO:root:
+Dual values:	
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+############### Solving column generation problem for c(2,3) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+################ Solving RMP in Iteration 3. ###################
+
+INFO:root:Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 67.24034074682977
+INFO:root:Variable c(0,1)_lam_4: 0.1823502439212269
+INFO:root:Variable c(0,1)_lam_5: 0.8176497560787731
+INFO:root:Variable c(2,3)_lam_13: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for c(0,1) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+############### Solving column generation problem for c(2,3) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+################ Solving RMP in Iteration 4. ###################
+
+INFO:root:Optimisation terminated successfully
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 67.24034074682977
+INFO:root:Variable c(2,3)_lam_13: 1.0
+INFO:root:Variable c(0,1)_lam_10: 1.0
+INFO:root:
+Computing current optimality gap:
+INFO:root:
+############### Solving column generation problem for c(0,1) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+############### Solving column generation problem for c(2,3) ###############
+INFO:root:
+Dual values:	
+INFO:root:Negative reduced cost so adding column.
+INFO:root:
+Optimisation terminated
+INFO:root:
+Approximation Points:	
+INFO:root:
+Computing current optimality gap:
+WARNING:root:
+Failed to satisfy bound on optimality within required iterations. Try increasing allowable iterations.
+INFO:root:
+ Vars:
+INFO:root:Variable 0: 0.0
+INFO:root:Variable 2: 67.24034074682977
+INFO:root:Variable c(2,3)_lam_13: 1.0
+INFO:root:Variable c(0,1)_lam_10: 1.0
