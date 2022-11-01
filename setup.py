@@ -14,6 +14,6 @@ setup(
     url='https://github.com/strathclyde-artificial-intelligence/pstnlib',
     license='LICENSE.txt',
     packages=find_packages(),
-    install_requires=['antlr4-python3-runtime==4.10', 'scipy', 'numpy', 'gurobipy', 'json', 'graphviz', 'otpl'],
+    install_requires=['antlr4-python3-runtime==4.10', 'scipy', 'numpy', 'gurobipy', 'graphviz', 'otpl'],
     dependency_links=['otpl @ git+ssh://git@github.com/strathclyde-artificial-intelligence/otpl@v1.1#egg=otpl']
 )
