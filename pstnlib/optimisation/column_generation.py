@@ -300,7 +300,6 @@ class PstnOptimisation(object):
         m.addConstr(x[0] == 0)
         logging.info("\nInitial model built, solving:") if self.verbose == True else None
         m.update()
-        m.write("gurobi/{}_1.lp".format(m.getAttr("ModelName")))
         m.optimize()
         if m.status == GRB.OPTIMAL:
             logging.info("\nOptimisation terminated successfully") if self.verbose == True else None
@@ -625,12 +624,9 @@ class PstnOptimisation(object):
             no_iterations += 1
             # If not satisfied we can run the master problem with the new columns added
             self.model.update()
-            self.model.write("gurobi/{}_{}.lp".format(self.model.getAttr("ModelName"), no_iterations))
-            self.model.write("gurobi/{}_{}.mps".format(self.model.getAttr("ModelName"), no_iterations))
             logging.info("\n################ Solving RMP in Iteration {}. ###################\n".format(no_iterations)) if self.verbose == True else None
             self.model.optimize()
             if self.model.status == GRB.OPTIMAL:
-                self.model.write("gurobi/{}_{}.sol".format(self.model.getAttr("ModelName"), no_iterations))
                 logging.info("Optimisation terminated successfully") if self.verbose == True else None
                 logging.info('\n Objective: ', self.model.objVal) if self.verbose == True else None
                 logging.info("Probability: ", exp(-self.model.objVal)) if self.verbose == True else None
