@@ -46,6 +46,6 @@ print("Probability assuming independence", ind_prob.solutions[-1].get_probabilit
 schedules = [corr_prob.solutions[-1].get_schedule(), ind_prob.solutions[-1].get_schedule()]
 
 # Simulates execution of schedules.
-mc_probs = corr.monte_carlo(schedules)
+mc_probs = cstn.monte_carlo(schedules)
 print("\nMonte Carlo probability with correlation", mc_probs[0])
 print("\nMonte Carlo probability assuming independence", mc_probs[1])

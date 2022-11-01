@@ -584,14 +584,13 @@ class PstnOptimisation(object):
         # Uses heuristics to generate intitial points.
         logging.info("\nAttempting to use PARIS to generate initial point.") if self.verbose == True else None
         self.heuristic_1()
-        #print("\nAttempting to use other heuristic to generate innitial point.") if self.verbose == True else None
         self.heuristic_2()
         if self.verbose == True:
-            print("\nInitial Approximation Points:")
+            logging.info("\nInitial Approximation Points:")
             for c in self.sub_problems:
-                print("\n")
-                print("\t", c.get_description())
-                print("\t", c.approximation)
+                logging.info("\n")
+                logging.info("\t", c.get_description())
+                logging.info("\t", c.approximation)
 
         # Solves restricted master problem using initial points and saves solution.
         logging.info("\nBuilding initial model.") if self.verbose == True else None
@@ -673,7 +672,7 @@ class PstnOptimisation(object):
                 if "_lam_" in v.varName and v.x == 0:
                     continue
                 else:
-                    print("Variable {}: ".format(v.varName) + str(v.x))
+                    logging.info("Variable {}: ".format(v.varName) + str(v.x))
             self.status = "Optimal"
         else:
             logging.warning("\nFailed to satisfy bound on optimality within required iterations. Try increasing allowable iterations.")
