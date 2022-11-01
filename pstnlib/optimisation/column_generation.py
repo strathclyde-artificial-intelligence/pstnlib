@@ -594,7 +594,7 @@ class PstnOptimisation(object):
             logging.debug(message)
 
         # Solves restricted master problem using initial points and saves solution.
-        logging.info(" BUILDING INITIAL MODEL\N") if self.verbose == True else None
+        logging.info(" BUILDING INITIAL MODEL\n") if self.verbose == True else None
         self.model = self.build_initial_model()
         self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
         no_iterations = 1
