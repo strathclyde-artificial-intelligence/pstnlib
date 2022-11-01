@@ -592,7 +592,6 @@ class PstnOptimisation(object):
         logging.debug(" Approximation points:") if self.verbose == 2 else None
         for i in range(len(self.sub_problems)):
             message = self.sub_problems[i].get_description() + ", {}".format(self.sub_problems[i].approximation)
-            print(message, type(message))
             logging.debug(message) if self.verbose == 2 else None
 
         # Solves restricted master problem using initial points and saves solution.
