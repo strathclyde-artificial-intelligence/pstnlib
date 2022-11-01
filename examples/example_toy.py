@@ -33,12 +33,12 @@ cstn.add_correlation(corr)
 cstn.name = "toy_cstn"
 
 # Solves considering the correlation.
-corr_prob = PstnOptimisation(cstn, verbose=True)
+corr_prob = PstnOptimisation(cstn, verbose=1)
 corr_prob.optimise()
 print("\nProbability with correlation", corr_prob.solutions[-1].get_probability())
 
 # Solves assuming independence.
-ind_prob = PstnOptimisation(cstn, verbose=True, assume_independence=True)
+ind_prob = PstnOptimisation(cstn, verbose=1, assume_independence=True)
 ind_prob.optimise()
 print("Probability assuming independence", ind_prob.solutions[-1].get_probability())
 
