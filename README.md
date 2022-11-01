@@ -7,7 +7,7 @@ In a PSTN, the nodes represent time points that can be scheduled while the edges
 Current modules include:
 - Temporal Netorks
     - Timepoint - A class to model the nodes of the temporal network. 
-    - Constraint - A class to model a constraint between two timepoints. These can be either Constraint of the form: `\$l_{ij} \leq b_j - b_i \leq u_{ij}`
+    - Constraint - A class to model a constraint between two timepoints. These can be either Constraint of the form: `$l_{ij} \leq b_j - b_i \leq u_{ij}$`
 - Grounding.
 - Planning Graphs.
 - Plan representations.
