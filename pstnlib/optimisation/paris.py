@@ -1,7 +1,4 @@
 import numpy as np
-from cylp.cy import CyClpSimplex
-from cylp.py.modeling.CyLPModel import CyLPArray
-from cylp.py.modeling import CyLPModel
 import numpy as np
 import numpy as np
 from scipy import stats

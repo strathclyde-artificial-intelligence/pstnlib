@@ -1,4 +1,3 @@
-from ast import Dict
 import copy
 from pstnlib.temporal_networks.timepoint import TimePoint
 from scipy import stats

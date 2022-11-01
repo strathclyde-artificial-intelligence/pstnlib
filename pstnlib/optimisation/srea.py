@@ -1,4 +1,3 @@
-from xml.etree.ElementInclude import DEFAULT_MAX_INCLUSION_DEPTH
 import gurobipy as gp
 from gurobipy import GRB
 from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
