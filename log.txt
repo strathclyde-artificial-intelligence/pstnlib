@@ -1,3 +1,7 @@
 INFO:root:Attempting to use PARIS to generate initial point.
 INFO:root:Solution could be found, parsing initial point and generating columns.
 INFO:root:Solution could be found, parsing initial point and generating columns.
+INFO:root: Attempting to use PARIS to generate initial point.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+INFO:root:Solution could be found, parsing initial point and generating columns.
+DEBUG:root: Approximation points:
