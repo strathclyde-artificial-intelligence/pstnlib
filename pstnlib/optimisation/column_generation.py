@@ -419,7 +419,7 @@ class PstnOptimisation(object):
                     constraints = c_u + c_l + [c_sum_lambda]
                     coefficients = [u for i in range(len(c_u))] + [-l for i in range(len(c_l))] + [1]
                     self.model.addVar(obj = phi_v, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
-            logging.debug("Approximation Points: {}\n".format(to_approximate.approximation)) if self.verbose == 2 else None
+            logging.debug(" Approximation Points: {}\n".format(to_approximate.approximation)) if self.verbose == 2 else None
             return f, status
 
         elif isinstance(to_approximate, Correlation):
@@ -565,7 +565,7 @@ class PstnOptimisation(object):
                                 elif to_approximate.constraints[j].get_description() == probabilistic_constraint and "_lb" in constraints[i].getAttr("ConstrName"):
                                     coefficients[i] = -l[j]
                     self.model.addVar(obj = phi_v, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
-            logging.debug("Approximation Points: {}\n".format(to_approximate.approximation)) if self.verbose == 2 else None
+            logging.debug(" Approximation Points: {}\n".format(to_approximate.approximation)) if self.verbose == 2 else None
             return f, status
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
@@ -637,7 +637,7 @@ class PstnOptimisation(object):
                     if "_lam_" in v.varName and v.x == 0:
                         continue
                     else:
-                        logging.info("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose > 0 else None
+                        logging.info(" Variable {}: ".format(v.varName) + str(v.x)) if self.verbose > 0 else None
             else:
                 logging.error(" Optimisation Failed - consult .ilp") if self.verbose > 0 else None
                 self.model.computeIIS()
@@ -645,7 +645,7 @@ class PstnOptimisation(object):
                 raise ValueError("Optimisation failed")
 
             self.upper_bound = self.model.objVal
-            logging.info(" UPDATING UPPER BOUND: ", self.model.objVal) if self.verbose > 0 else None
+            logging.info(" UPDATING UPPER BOUND: {}".format(self.model.objVal)) if self.verbose > 0 else None
             self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
 
             lb = self.upper_bound
