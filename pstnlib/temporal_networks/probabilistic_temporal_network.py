@@ -1,4 +1,3 @@
-
 from json.encoder import INFINITY
 from pstnlib.temporal_networks.temporal_network import TemporalNetwork
 from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint

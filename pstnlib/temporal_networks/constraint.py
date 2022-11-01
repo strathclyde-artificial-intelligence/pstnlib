@@ -2,7 +2,6 @@ import copy
 from pstnlib.temporal_networks.timepoint import TimePoint
 from scipy import stats
 import numpy as np
-from pstnlib.optimisation.probabilities import rectangular_probability
 inf = 1000000000
 
 class Constraint:

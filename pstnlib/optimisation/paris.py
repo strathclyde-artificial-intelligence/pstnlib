@@ -6,7 +6,6 @@ from math import inf
 from pstnlib.temporal_networks.constraint import Constraint
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
-import time
 import gurobipy as gp
 from gurobipy import GRB
 inf = np.inf
@@ -145,22 +144,11 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
             grad, const = partition[0], partition[1]
             m.addConstr(F_u - grad*omega_u >= const)
 
-    #m.addConstr(m.getVarByName("0") == 0)
     m.update()
     risk = m.getVarByName("Risk")
     m.addConstr(gp.quicksum([v for v in m.getVars() if v.varName[-2:] in ["Fu", "Fl"]]) == risk, 'risk')
-
     m.update()
-    print("\nSolving: ", PSTN.name)
     m.optimize()
-    m.write("gurobi/{}.lp".format(m.getAttr("ModelName")))
-    # Checks to see whether an optimal solution is found and if so it prints the solution and objective value
-    if m.status == GRB.OPTIMAL:
-        m.write("gurobi/{}.sol".format(m.getAttr("ModelName")))
-        print('\nObjective: ', m.objVal)
-        print('\nVars:')
-        for v in m.getVars():
-            print("Variable {}: ".format(v.varName) + str(v.x))
     return m
         
         

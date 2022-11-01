@@ -1,6 +1,5 @@
 import gurobipy as gp
 from gurobipy import GRB
-from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from scipy.stats import norm
 

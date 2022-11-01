@@ -1,11 +1,3 @@
-from calendar import c
-from multiprocessing.sharedctypes import Value
-from multiprocessing.synchronize import BoundedSemaphore
-from pydoc import pathdirs
-from tabnanny import verbose
-from typing import NewType, runtime_checkable
-from unicodedata import name
-from xml.etree.ElementTree import TreeBuilder
 import numpy as np
 from math import log, exp
 from scipy import stats
@@ -20,6 +12,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from scipy import optimize
 import sys
+import logging
 inf = 1000000000
 eps = 1e-9
 
@@ -29,11 +22,12 @@ class PstnOptimisation(object):
     Parameters:     network - Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
                     results - List of instances of optimisation_colution class for each iteration l
     """
-    def __init__(self, network: ProbabilisticTemporalNetwork, verbose: bool = False, assume_independence: bool = False) -> None:
+    def __init__(self, network: ProbabilisticTemporalNetwork, verbose: bool = False, assume_independence: bool = False, logfile='log.txt') -> None:
         """
         Parses the probablistic temporal network and generates initial approximation points.
         """
         self.verbose = verbose
+        logging.basicConfig(filename=logfile, encoding='utf-8', level=logging.DEBUG) if self.verbose == True else None
         self.network = network
         if isinstance(network, CorrelatedTemporalNetwork):
             if assume_independence != True:
@@ -72,7 +66,7 @@ class PstnOptimisation(object):
 
         # # If a solution can be found it uses it to compute initial point, otherwise it uses heuristic.
         if lp_model.status == GRB.OPTIMAL:
-            print("Solution could be found, parsing initial point and generating columns.") if self.verbose == True else None
+            logging.info("Solution could be found, parsing initial point and generating columns.") if self.verbose == True else None
             self.model = lp_model
             tc = self.network.get_controllable_time_points()
             cp = self.network.get_probabilistic_constraints()
@@ -201,7 +195,7 @@ class PstnOptimisation(object):
 
         if initial.status == GRB.OPTIMAL:
             # Adds initial approximation points
-            print("Solution could be found, parsing initial point and generating columns.") if self.verbose == True else None
+            logging.info("Solution could be found, parsing initial point and generating columns.") if self.verbose == True else None
             for c in self.sub_problems:
                 if isinstance(c, Correlation):
                     # From the solution extracts the lower and upper bounds.
@@ -304,24 +298,24 @@ class PstnOptimisation(object):
                         m.addConstr(gp.quicksum([-l[k][n] * m.getVarByName(c.get_description() + "_lam_{}".format(k)) for k in range(len(l))]) <= x[j] - x[i] - ci.lb, name = c.get_description() + "_" + c.constraints[n].get_description() + "_" + ci.get_description() + "_lb")
         # Constrains initial time-point to be zero
         m.addConstr(x[0] == 0)
-        print("\nInitial model built, solving:") if self.verbose == True else None
+        logging.info("\nInitial model built, solving:") if self.verbose == True else None
         m.update()
         m.write("gurobi/{}_1.lp".format(m.getAttr("ModelName")))
         m.optimize()
         if m.status == GRB.OPTIMAL:
-            print("\nOptimisation terminated successfully") if self.verbose == True else None
-            print('\n Objective: ', m.objVal) if self.verbose == True else None
-            print("Probability: ", exp(-m.objVal)) if self.verbose == True else None
-            print('\n Vars:') if self.verbose == True else None
+            logging.info("\nOptimisation terminated successfully") if self.verbose == True else None
+            logging.info('\n Objective: ', m.objVal) if self.verbose == True else None
+            logging.info("Probability: ", exp(-m.objVal)) if self.verbose == True else None
+            logging.info('\n Vars:') if self.verbose == True else None
             for v in m.getVars():
                 if "_lam_" in v.varName and v.x == 0:
                     continue
                 else:
-                    print("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
-            m.write("gurobi/{}_1.sol".format(m.getAttr("ModelName")))
+                    logging.info("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
         else:
+            logging.error("\nOptimisation Failed - consult .ilp file")
             m.computeIIS()
-            m.write("gurobi/{}_1.ilp".format(m.getAttr("ModelName")))
+            m.write("{}.ilp".format(m.getAttr("ModelName")))
             raise ValueError("Optimisation failed")
         return m
 
@@ -351,34 +345,34 @@ class PstnOptimisation(object):
             dual_l = -sum([c.getAttr("Pi") for c in c_l])
             dual_z = np.array([dual_u, dual_l])
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
-            print("\nDual values:\t") if self.verbose == True else None
-            print("sum lambda:\t", dual_sum_lambda) if self.verbose == True else None
-            print("upper:\t", dual_u) if self.verbose == True else None
-            print("lower:\t", dual_l) if self.verbose == True else None
-            print("joint:\t", dual_z) if self.verbose == True else None
+            logging.info("\nDual values:\t") if self.verbose == True else None
+            logging.info("sum lambda:\t", dual_sum_lambda) if self.verbose == True else None
+            logging.info("upper:\t", dual_u) if self.verbose == True else None
+            logging.info("lower:\t", dual_l) if self.verbose == True else None
+            logging.info("joint:\t", dual_z) if self.verbose == True else None
 
             # Makes initial vector z given initial l and u. 
             assert len(c_u) == len(c_l), "Should be same number of upper bound constraints and lower bound constraints."
 
             z0 = np.array([u0, l0])
-            print("\nInitial z value:\t", z0) if self.verbose == True else None
+            logging.info("\nInitial z value:\t", z0) if self.verbose == True else None
 
             def dualf(z):
                 """
                 Reduced cost: phi(z) - pi^T z - nu. This is the objective function of the column generation problem
                 """
-                print("\nCurrent z:\t", z) if self.verbose == True else None
+                logging.info("\nCurrent z:\t", z) if self.verbose == True else None
                 u, l = z[0], z[1]
-                print("l:\t", l) if self.verbose == True else None
-                print("u:\t", u) if self.verbose == True else None
+                logging.info("l:\t", l) if self.verbose == True else None
+                logging.info("u:\t", u) if self.verbose == True else None
                 prob = to_approximate.evaluate_probability(l, u)
-                print("Probability:\t", prob) if self.verbose == True else None
+                logging.info("Probability:\t", prob) if self.verbose == True else None
                 phi = -log(prob)
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
-                print("Reduced cost:\t", dual) if self.verbose == True else None
+                logging.info("Reduced cost:\t", dual) if self.verbose == True else None
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0 and add_intermediate_points == True:
-                    print("Negative reduced cost so adding column.") if self.verbose == True else None
+                    logging.info("Negative reduced cost so adding column.") if self.verbose == True else None
                     toAdd = to_approximate.add_approximation_point(l, u, phi)
                     if toAdd == True:
                         # Gets equivalent z and adds to gurobi model.
@@ -393,11 +387,11 @@ class PstnOptimisation(object):
                 """
                 u, l = z[0], z[1]
                 dF = np.array([distribution.pdf(u), -distribution.pdf(l)])
-                print("Gradient of Probability:\t", dF) if self.verbose == True else None
+                logging.info("Gradient of Probability:\t", dF) if self.verbose == True else None
                 F = to_approximate.evaluate_probability(l, u)
-                print("Probability used for gradient:\t", F) if self.verbose == True else None
+                logging.info("Probability used for gradient:\t", F) if self.verbose == True else None
                 grad = -dF/(F) - dual_z
-                print("Gradient:\t", grad) if self.verbose == True else None
+                logging.info("Gradient:\t", grad) if self.verbose == True else None
                 return grad
             
             constrs = {'type': 'ineq', 'fun' : lambda x: np.array([-0.01 + x[0] - x[1]]), 'jac' : lambda x: np.array([1, -1])}
@@ -406,11 +400,11 @@ class PstnOptimisation(object):
             bounds = [(to_approximate.mean - 4 * to_approximate.sd, to_approximate.mean + 4 * to_approximate.sd), (to_approximate.mean - 4 * to_approximate.sd, to_approximate.mean + 4 * to_approximate.sd)]
 
             res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = constrs, bounds=bounds)
-            print("\nOptimisation terminated") if self.verbose == True else None
+            logging.info("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
-            print("Status:\t", status) if self.verbose == True else None
-            print("Optimal value:\t", f) if self.verbose == True else None
+            logging.info("Status:\t", status) if self.verbose == True else None
+            logging.info("Optimal value:\t", f) if self.verbose == True else None
 
             if add_intermediate_points == False:
                 z = res.x
@@ -422,7 +416,7 @@ class PstnOptimisation(object):
                     constraints = c_u + c_l + [c_sum_lambda]
                     coefficients = [u for i in range(len(c_u))] + [-l for i in range(len(c_l))] + [1]
                     self.model.addVar(obj = phi_v, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
-            print("\nApproximation Points:\t", to_approximate.approximation) if self.verbose == True else None
+            logging.info("\nApproximation Points:\t", to_approximate.approximation) if self.verbose == True else None
             return f, status
 
         elif isinstance(to_approximate, Correlation):
@@ -452,32 +446,32 @@ class PstnOptimisation(object):
 
             dual_z = np.concatenate((dual_u, dual_l))
             dual_sum_lambda = c_sum_lambda.getAttr("Pi")
-            print("\nDual values:\t") if self.verbose == True else None
-            print("sum lambda:\t", dual_sum_lambda) if self.verbose == True else None
-            print("upper:\t", dual_u) if self.verbose == True else None
-            print("lower:\t", dual_l) if self.verbose == True else None
-            print("joint:\t", dual_z) if self.verbose == True else None
+            logging.info("\nDual values:\t") if self.verbose == True else None
+            logging.info("sum lambda:\t", dual_sum_lambda) if self.verbose == True else None
+            logging.info("upper:\t", dual_u) if self.verbose == True else None
+            logging.info("lower:\t", dual_l) if self.verbose == True else None
+            logging.info("joint:\t", dual_z) if self.verbose == True else None
 
             z0 = np.concatenate((u0, l0))
-            print("\nInitial z value: ", z0) if self.verbose == True else None
+            logging.info("\nInitial z value: ", z0) if self.verbose == True else None
 
             def dualf(z):
                 """
                 Reduced cost: phi(z) - pi^T z - nu. This is the objective function of the column generation problem
                 """
-                print("\nCurrent z:\t", z) if self.verbose == True else None
+                logging.info("\nCurrent z:\t", z) if self.verbose == True else None
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
-                print("l:\t", l) if self.verbose == True else None
-                print("u:\t", u) if self.verbose == True else None
+                logging.info("l:\t", l) if self.verbose == True else None
+                logging.info("u:\t", u) if self.verbose == True else None
                 prob = to_approximate.evaluate_probability(l, u)
-                print("Probability:\t", prob) if self.verbose == True else None
+                logging.info("Probability:\t", prob) if self.verbose == True else None
                 phi = -log(prob)
-                print("Phi:\t", phi) if self.verbose == True else None
+                logging.info("Phi:\t", phi) if self.verbose == True else None
                 dual = phi - np.dot(z, dual_z) - dual_sum_lambda
-                print("Reduced cost:\t", dual) if self.verbose == True else None
+                logging.info("Reduced cost:\t", dual) if self.verbose == True else None
                 # If reduced cost is less than zero we can add the column.
                 if dual <= 0 and add_intermediate_points == True:
-                    print("Negative reduced cost so adding column.") if self.verbose == True else None
+                    logging.info("Negative reduced cost so adding column.") if self.verbose == True else None
                     toAdd = to_approximate.add_approximation_point(l, u, phi)
                     # Add to gurobi model.
                     if toAdd == True:
@@ -504,11 +498,11 @@ class PstnOptimisation(object):
                 u, l = z[:len(to_approximate.constraints)], z[len(to_approximate.constraints):]
                 dl, du = to_approximate.evaluate_gradient(l, u)
                 dF = np.concatenate((du, dl))
-                print("Gradient of Probability:\t", dF) if self.verbose == True else None
+                logging.info("Gradient of Probability:\t", dF) if self.verbose == True else None
                 F = to_approximate.evaluate_probability(l, u)
-                print("Probability used for gradient:\t", F) if self.verbose == True else None
+                logging.info("Probability used for gradient:\t", F) if self.verbose == True else None
                 grad = -dF/(F) - dual_z
-                print("Gradient:\t", grad) if self.verbose == True else None
+                logging.info("Gradient:\t", grad) if self.verbose == True else None
                 return grad
             
             def limit_constraint(z):
@@ -542,11 +536,11 @@ class PstnOptimisation(object):
             con = {'type': 'ineq', "fun": limit_constraint, "jac": constraint_jacobian}
             # Finds the column z that minimizes the dual.
             res = optimize.minimize(dualf, z0, jac = gradf, method = "SLSQP", constraints = con, bounds=bounds)
-            print("\nOptimisation terminated") if self.verbose == True else None
+            logging.info("\nOptimisation terminated") if self.verbose == True else None
             f = res.fun
             status = res.success
-            print("Status:\t", status) if self.verbose == True else None
-            print("Optimal value:\t", f) if self.verbose == True else None
+            logging.info("Status:\t", status) if self.verbose == True else None
+            logging.info("Optimal value:\t", f) if self.verbose == True else None
 
             if add_intermediate_points == False:
                 z = res.x
@@ -569,31 +563,27 @@ class PstnOptimisation(object):
                                 elif to_approximate.constraints[j].get_description() == probabilistic_constraint and "_lb" in constraints[i].getAttr("ConstrName"):
                                     coefficients[i] = -l[j]
                     self.model.addVar(obj = phi_v, column = gp.Column(coefficients, constraints), name = to_approximate.get_description() + "_lam_{}".format(len(to_approximate.approximation["evaluation"])-1))
-            print("\nApproximation Points:\t", to_approximate.approximation) if self.verbose == True else None
+            logging.info("\nApproximation Points:\t", to_approximate.approximation) if self.verbose == True else None
             return f, status
         else:
             raise AttributeError("Invalid input type. Column generation takes instance of probabilistic constraint of correlation.")
     
     def compute_optimality_gap(self):
-        print("\nComputing current optimality gap:") if self.verbose == True else None
-        print("Lower bound: ", self.lower_bound) if self.verbose == True else None
-        print("Upper bound: ", self.upper_bound) if self.verbose == True else None
+        logging.info("\nComputing current optimality gap:") if self.verbose == True else None
+        logging.info("Lower bound: ", self.lower_bound) if self.verbose == True else None
+        logging.info("Upper bound: ", self.upper_bound) if self.verbose == True else None
         gap = (self.upper_bound - self.lower_bound)/self.lower_bound
-        print("Gap: ", gap) if self.verbose == True else None
+        logging.info("Gap: ", gap) if self.verbose == True else None
         return gap
 
     def optimise(self, max_iterations: int = 30, tolerance: float = 0.01):
         """
         Finds schedule that optimises probability of success using column generation
         """
-        if self.verbose == True:
-            saved_stdout = sys.stdout
-            sys.stdout =  open("log.txt", "w+")
-
         start = time()
         
         # Uses heuristics to generate intitial points.
-        print("\nAttempting to use PARIS to generate initial point.") if self.verbose == True else None
+        logging.info("\nAttempting to use PARIS to generate initial point.") if self.verbose == True else None
         self.heuristic_1()
         #print("\nAttempting to use other heuristic to generate innitial point.") if self.verbose == True else None
         self.heuristic_2()
@@ -605,7 +595,7 @@ class PstnOptimisation(object):
                 print("\t", c.approximation)
 
         # Solves restricted master problem using initial points and saves solution.
-        print("\nBuilding initial model.") if self.verbose == True else None
+        logging.info("\nBuilding initial model.") if self.verbose == True else None
         self.model = self.build_initial_model()
         self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
         no_iterations = 1
@@ -615,7 +605,7 @@ class PstnOptimisation(object):
         statuses = []
         # Solves the column generation problem for each sub problem.
         for sp in self.sub_problems:
-            print("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
+            logging.info("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
             try:
                 f, status = self.column_generation_problem(sp)
                 lb += f
@@ -637,34 +627,34 @@ class PstnOptimisation(object):
             self.model.update()
             self.model.write("gurobi/{}_{}.lp".format(self.model.getAttr("ModelName"), no_iterations))
             self.model.write("gurobi/{}_{}.mps".format(self.model.getAttr("ModelName"), no_iterations))
-            print("\n################ Solving RMP in Iteration {}. ###################\n".format(no_iterations)) if self.verbose == True else None
+            logging.info("\n################ Solving RMP in Iteration {}. ###################\n".format(no_iterations)) if self.verbose == True else None
             self.model.optimize()
             if self.model.status == GRB.OPTIMAL:
                 self.model.write("gurobi/{}_{}.sol".format(self.model.getAttr("ModelName"), no_iterations))
-                print("Optimisation terminated successfully") if self.verbose == True else None
-                print('\n Objective: ', self.model.objVal) if self.verbose == True else None
-                print("Probability: ", exp(-self.model.objVal)) if self.verbose == True else None
-                print('\n Vars:') if self.verbose == True else None
+                logging.info("Optimisation terminated successfully") if self.verbose == True else None
+                logging.info('\n Objective: ', self.model.objVal) if self.verbose == True else None
+                logging.info("Probability: ", exp(-self.model.objVal)) if self.verbose == True else None
+                logging.info('\n Vars:') if self.verbose == True else None
                 for v in self.model.getVars():
                     if "_lam_" in v.varName and v.x == 0:
                         continue
                     else:
-                        print("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
+                        logging.info("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
             else:
-                print("Optimisation Failed") if self.verbose == True else None
+                logging.error("Optimisation Failed - consult .ilp") if self.verbose == True else None
                 self.model.computeIIS()
-                self.model.write("gurobi/{}_{}.ilp".format(self.model.getAttr("ModelName"), no_iterations))
+                self.model.write("{}.ilp".format(self.model.getAttr("ModelName"), no_iterations))
                 raise ValueError("Optimisation failed")
 
             self.upper_bound = self.model.objVal
-            print("UPDATING UPPER BOUND: ", self.model.objVal)
+            logging.info("UPDATING UPPER BOUND: ", self.model.objVal)
             self.solutions.append(Solution(self.network, self.model, time() - start, bound=self.compute_optimality_gap()))
 
             lb = self.upper_bound
             statuses = []
             # Solves the column generation problem for each sub problem.
             for sp in self.sub_problems:
-                print("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
+                logging.info("\n############### Solving column generation problem for {} ###############".format(sp.get_description())) if self.verbose == True else None
                 try:
                     f, status = self.column_generation_problem(sp)
                     lb += f
@@ -679,10 +669,10 @@ class PstnOptimisation(object):
             bound = self.compute_optimality_gap()
 
         if (bound <= tolerance and bound > 0) and self.model.status == GRB.OPTIMAL:
-            print("Final Optimisation terminated sucessfully")
-            print('\n Objective: ', self.model.objVal)
-            print("Probability: ", exp(-self.model.objVal))
-            print('\n Vars:')
+            logging.info("Final Optimisation terminated sucessfully")
+            logging.info('\n Objective: ', self.model.objVal)
+            logging.info("Probability: ", exp(-self.model.objVal))
+            logging.info('\n Vars:')
             for v in self.model.getVars():
                 if "_lam_" in v.varName and v.x == 0:
                     continue
@@ -690,20 +680,16 @@ class PstnOptimisation(object):
                     print("Variable {}: ".format(v.varName) + str(v.x))
             self.status = "Optimal"
         else:
-            print("\nFinal Optimisation failed")
-            print('\n Objective: ', self.model.objVal)
-            print("Probability: ", exp(-self.model.objVal))
-            print('\n Vars:')
+            logging.warning("\nFailed to satisfy bound on optimality within required iterations. Try increasing allowable iterations.")
+            logging.info('\n Objective: ', self.model.objVal)
+            logging.info("Probability: ", exp(-self.model.objVal))
+            logging.info('\n Vars:')
             for v in self.model.getVars():
                 if "_lam_" in v.varName and v.x == 0:
                     continue
                 else:
-                    print("Variable {}: ".format(v.varName) + str(v.x))
+                    logging.info("Variable {}: ".format(v.varName) + str(v.x))
             self.status = "Failed"
-
-        if self.verbose == True:
-            sys.stdout.close()
-            sys.stdout = saved_stdout
 
     
     

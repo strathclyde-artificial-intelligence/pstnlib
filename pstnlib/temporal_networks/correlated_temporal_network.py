@@ -1,4 +1,3 @@
-from multiprocessing.sharedctypes import Value
 from pstnlib.temporal_networks.probabilistic_temporal_network import ProbabilisticTemporalNetwork
 from pstnlib.temporal_networks.correlation import Correlation
 from pstnlib.temporal_networks.constraint import Constraint, ProbabilisticConstraint

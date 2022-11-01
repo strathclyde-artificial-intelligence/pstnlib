@@ -1,4 +1,3 @@
-from sqlite3 import Time
 from pstnlib.temporal_networks.timepoint import TimePoint
 from pstnlib.temporal_networks.constraint import Constraint
 from otpl.temporal_networks.simple_temporal_network import SimpleTemporalNetwork
