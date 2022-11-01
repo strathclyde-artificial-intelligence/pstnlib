@@ -14,5 +14,5 @@ setup(
     url='https://github.com/strathclyde-artificial-intelligence/pstnlib',
     license='LICENSE.txt',
     packages=find_packages(),
-    install_requires=['otpl @ git+ssh://git@github.com/strathclyde-artificial-intelligence/otpl.git'],
+    install_requires=['otpl @ git+https://git@github.com/strathclyde-artificial-intelligence/otpl.git'],
 )
