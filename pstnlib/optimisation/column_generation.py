@@ -588,7 +588,7 @@ class PstnOptimisation(object):
         logging.info("Attempting to use PARIS to generate initial point.") if self.verbose == True else None
         self.heuristic_1()
         self.heuristic_2()
-        logging.info("Initial Approximation Points: \n\t" + str([c.get_description() for c in self.sub_problems]) + "\n\t" +str([c.approximation for c in self.sub_problems])) if self.verbose == True else None
+        logging.info("Initial Approximation Points: \n\t" + ' '.join([c.get_description() for c in self.sub_problems]) + "\n\t" + ' '.join([c.approximation for c in self.sub_problems])) if self.verbose == True else None
 
         # Solves restricted master problem using initial points and saves solution.
         logging.info("\nBuilding initial model.") if self.verbose == True else None
