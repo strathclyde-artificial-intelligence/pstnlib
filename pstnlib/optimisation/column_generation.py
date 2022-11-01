@@ -29,7 +29,7 @@ class PstnOptimisation(object):
         """
         Parses the probablistic temporal network and generates initial approximation points.
         """
-        if self.verbose not in [0, 1, 2]:
+        if verbose not in [0, 1, 2]:
             raise ValueError("Invalid verbosity level. Use 0 for no log, 1 for info and 2 for info and debug.")
         self.verbose = verbose
         logging.basicConfig(filename=logfile, encoding='utf-8', level=logging.DEBUG) if self.verbose == True else None
