@@ -15,6 +15,9 @@ import sys
 import logging
 inf = 1000000000
 eps = 1e-9
+env = gp.Env(empty=True)
+env.setParam("OutputFlag",0)
+env.start()
 
 class PstnOptimisation(object):
     """
@@ -129,7 +132,7 @@ class PstnOptimisation(object):
         """
         Heuristically drives apart the distance between upper and lower bounds to generate an initial point.
         """
-        initial = gp.Model("initiialisation")
+        initial = gp.Model("initiialisation", env=env)
         self.model = initial
         tc = self.network.get_controllable_time_points()
         x = initial.addMVar(len(tc), name=[str(t.id) for t in tc])
@@ -225,9 +228,9 @@ class PstnOptimisation(object):
         Builds and solves the restricted master problem given the initial approximation points.
         """
         if self.network.name != None:
-            m = gp.Model("RMP_{}".format(self.network.name))
+            m = gp.Model("RMP_{}".format(self.network.name), env=env)
         else:
-            m = gp.Model("RMP")
+            m = gp.Model("RMP", env=env)
 
         # Adds Variable for timepoints
         tc = self.network.get_controllable_time_points()
@@ -312,7 +315,7 @@ class PstnOptimisation(object):
                 else:
                     logging.info("Variable {}: ".format(v.varName) + str(v.x)) if self.verbose == True else None
         else:
-            logging.error("\nOptimisation Failed - consult .ilp file")
+            logging.error("\nOptimisation Failed - consult .ilp file") if self.verbose == True else None
             m.computeIIS()
             m.write("{}.ilp".format(m.getAttr("ModelName")))
             raise ValueError("Optimisation failed")

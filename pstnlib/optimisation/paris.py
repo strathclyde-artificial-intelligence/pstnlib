@@ -9,6 +9,10 @@ from pstnlib.temporal_networks.constraint import ProbabilisticConstraint
 import gurobipy as gp
 from gurobipy import GRB
 inf = np.inf
+env = gp.Env(empty=True)
+env.setParam("OutputFlag",0)
+env.start()
+
 
 def linear_probability(constraint: ProbabilisticConstraint, n: int) -> tuple[list]:
     '''
@@ -64,9 +68,9 @@ def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
     Output:         m - A model containing all variables, constraints and objectives
     '''
     if PSTN.name != None:
-        m = gp.Model("PARIS_{}".format(PSTN.name))
+        m = gp.Model("PARIS_{}".format(PSTN.name), env=env)
     else:
-        m = gp.Model("PARIS")
+        m = gp.Model("PARIS", env=env)
 
     # Gets relevant items from PSTN
     cc = PSTN.get_controllable_constraints()
