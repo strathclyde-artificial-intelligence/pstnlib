@@ -1,7 +1,0 @@
-__pycache__/
-junk/
-logs/
-gurobi/
-pstnlib/optimisation/pstn_optimisation_class_cyipopt.py
-pstnlib/optimisation/column_generation.py
-pstnlib/optimisation/column_generation_old.py
