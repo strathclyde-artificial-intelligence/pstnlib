@@ -665,7 +665,7 @@ class PstnOptimisation(object):
                 self.lower_bound = lb
             bound = self.compute_optimality_gap()
 
-        if (bound <= tolerance and bound > 0) and self.model.status == GRB.OPTIMAL:
+        if (bound <= tolerance and bound >= 0) and self.model.status == GRB.OPTIMAL:
             logging.info(" Final Optimisation terminated sucessfully") if self.verbose > 0 else None
             logging.info(' Objective: {}'.format(self.model.objVal)) if self.verbose > 0 else None
             logging.info(" Probability: {}".format(exp(-self.model.objVal))) if self.verbose > 0 else None
