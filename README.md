@@ -45,9 +45,10 @@ pip install git+https://github.com/strathclyde-artificial-intelligence/pstnlib.g
 
 ```
 
-PSTNLIB has the following optional dependencies:
+PSTNLIB has the following dependencies:
 
-- [https://www.gurobi.com/](GUROBI) (Linear programming solver used in the optimisation. A free academic license is available on their website.)
+- [https://www.gurobi.com/](GUROBI) (Linear programming solver used in the optimisation. A free academic license is available on their website.
+- [https://github.com/strathclyde-artificial-intelligence/otpl](OTPL) (Open Task Planning Library, a suite of tools for dealing with PDDL in python (installed as dependency))
   
 
 ### Literature
