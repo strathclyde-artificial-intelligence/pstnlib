@@ -43,9 +43,13 @@ ind_prob.optimise()
 print("Probability assuming independence", ind_prob.solutions[-1].get_probability())
 
 # Gets the schedules.
-schedules = [corr_prob.solutions[-1].get_schedule(), ind_prob.solutions[-1].get_schedule()]
+corr_sched = corr_prob.solutions[-1].get_schedule()
+ind_sched = ind_prob.solutions[-1].get_schedule()
+print("\nSchedule with Correlation", corr_sched)
+print("Schedule with independence", ind_sched)
+schedules = [corr_sched, ind_sched]
 
 # Simulates execution of schedules.
 mc_probs = cstn.monte_carlo(schedules)
 print("\nMonte Carlo probability with correlation", mc_probs[0])
-print("\nMonte Carlo probability assuming independence", mc_probs[1])
+print("Monte Carlo probability assuming independence", mc_probs[1])
