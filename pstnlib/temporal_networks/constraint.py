@@ -6,7 +6,19 @@ inf = 1000000000
 
 class Constraint:
     """
-    represents a temporal network constraint (edge in the network)
+    Represents a temporal network constraint (edge in the network).
+    -----------------------
+    Params:
+        source:         pstnlib.temporal_networks.timepoint.TimePoint
+                            source node in edge
+        sink:           pstnlib.temporal_networks.timepoint.TimePoint
+                            sink node in edge
+        label:          str
+                            label describing edge.
+        type:           str
+                            string type of edge. should be stc for simple temporal constraint or pstc for probabilistic simple temporal constrai.
+        duration_bound: dict
+                            duration_bound for constraint in the form {'lb: float, 'ub': float}           
     """
     def __init__(self, source: TimePoint, sink: TimePoint, label: str, duration_bound: dict):
         self.source = source
@@ -55,6 +67,21 @@ class Constraint:
         return self.duration_bound["ub"]
 
 class ProbabilisticConstraint(Constraint):
+    """
+    Represents a probabilistic constraint (edge in the network).
+    -----------------------
+    Params:
+        source:         pstnlib.temporal_networks.timepoint.TimePoint
+                            source node in edge
+        sink:           pstnlib.temporal_networks.timepoint.TimePoint
+                            sink node in edge
+        label:          str
+                            label describing edge.
+        distribution:   dict
+                            dictionary of mean and standard deviation.
+        approximation:  dict
+                            dictionary of approximation vectors and their probabilities.      
+    """
     def __init__(self, source: TimePoint, sink: TimePoint, label: str, distribution: dict) -> None:
         super().__init__(source, sink, label, {"lb": 0, "ub": inf})
         self.type = "pstc"

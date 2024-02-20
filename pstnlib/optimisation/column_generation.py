@@ -21,9 +21,17 @@ env.start()
 
 class PstnOptimisation(object):
     """
-    Description:    Class representing Probabilistic Temporal Network (or Correlated Temporal Network) SC as an optimisation problem of the form {min phi(z) | z <= Tx + q, Ax <= b} 
-    Parameters:     network - Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
-                    results - List of instances of optimisation_colution class for each iteration l
+    Class used for SC optimisation of PSTN or Corr-STN.
+    ---------------------------
+    Params:
+        network:                pstnlib.temporal_networks.probabilistic_temporal_network.ProbabilisticTemporalNetwork
+                                    Instance of Probabilisitc Temporal Network or (or Correlated Temporal Network) to be optimised.
+        verbose:                int
+                                    verbosity of output.
+        assume_independence:    bool
+                                    True is independence is assumed, else consider correlation.
+        logfile:                str
+                                    string name of file to save log to.
     """
     def __init__(self, network: ProbabilisticTemporalNetwork, verbose: int = 1, assume_independence: bool = False, logfile='log.txt') -> None:
         """

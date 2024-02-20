@@ -1,11 +1,17 @@
 class TimePoint:
     """
-    represents a time point (vertex in the temporal network)
+    Class representing a time point (vertex in the temporal network)
+    ------------------------
+    Params:
+        id:             int
+                            unique identifier of node in the temporal network.
+        label:          str
+                            string used to label the node.
+        controllable:   bool
+                            True if time point is controllable (we can choose when to schedule it), else False.
+
     """
     def __init__(self, id: int, label: str, controllable: bool = True) -> None:
-        # controllable: True if time-point can be scheduled, 
-        #               False if it cannot (follows an uncertain duration)
-        #               Always True for STN
         self.id = id
         self.label = label
         self.controllable = controllable

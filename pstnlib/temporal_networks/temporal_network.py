@@ -12,7 +12,15 @@ inf = 1e9
 
 class TemporalNetwork:
     """
-    represents a simple temporal network as a graph.
+    Represents a simple temporal network as a graph.
+    --------------------------
+    Params:
+            name:           str
+                                String name of PSTN.
+            time_points:    list[pstnlib.temporal_networks.timepoint.TimePoint]
+                                list of time points in the network.
+            constraints:    list[pstnlib.temporal_networks.constraint.Constraint]
+                                list of constraints in the network.
     """
     def __init__(self) -> None:
         self.name = None

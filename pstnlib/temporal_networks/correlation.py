@@ -7,8 +7,13 @@ from math import sqrt
 class Correlation:
     """
     Represents a correlation across a number of probabilistic "pstc" type constraints. Given n probabilistic constraints, such that for i = 1,2,...,n,
-    constraint i has mean = mu_i and standard deviation = sigma_i we have mean vector mu = (mu_1, mu_2,...,mu_n) and auxiliary matrix = [[sigma_1, 0, 0], [0, sigma_2, 0],.., [0, 0, sigma_n]]
-    We add a positive definite correlation matrix R, such that the covariance matrix is Sigma = auxiliary R auxiliary^T
+    constraint i has mean = mu_i and standard deviation = sigma_i we have mean vector mu = (mu_1, mu_2,...,mu_n) and
+    auxiliary matrix = [[sigma_1, 0, 0], [0, sigma_2, 0],.., [0, 0, sigma_n]]. We add a positive definite correlation matrix R,
+    such that the covariance matrix is Sigma = auxiliary R auxiliary^T
+    ----------------------
+    Params:
+            constraints:    list[Constraint]
+                list of probabilistic constraints to include in the correlation.
     """
     def __init__(self, constraints: list[Constraint]):
         self.constraints = constraints

@@ -7,6 +7,19 @@ inf = 1e9
 def rectangular_probability(mean: np.ndarray, cov: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
     """
     Given a multivariate normal distribution X with mean vector and covariance matrix, calculates the rectangular probability P(l <= X <= u).
+    ------------------------
+    Params:
+        mean: np.ndarray
+            Mean vector of random variable
+        cov: np.ndarray
+            Covariance matrix
+        lower: np.ndarray
+            Vector of lower bounds
+        upper: np.ndarray
+            Vector of upper bounds
+    ------------------------
+    returns:
+        float
     """
     # Checks dimensions
     assert len(mean) == len(upper)
@@ -31,6 +44,19 @@ def rectangular_gradient(mean: np.ndarray, cov: np.ndarray, lower: np.ndarray, u
     Van Ackooij, W., Henrion, R., Möller, A. and Zorgati, R., 2010.
     On probabilistic constraints induced by rectangular sets and multivariate normal distributions. 
     Mathematical Methods of Operations Research, 71(3), pp.535-549.
+    ------------------------
+    Params:
+        mean: np.ndarray
+            Mean vector of random variable
+        cov: np.ndarray
+            Covariance matrix
+        lower: np.ndarray
+            Vector of lower bounds
+        upper: np.ndarray
+            Vector of upper bounds
+    ------------------------
+    returns:
+        tuple(np.array, np.array)
     '''
     dl, du = [], []
     I = np.eye(len(mean))

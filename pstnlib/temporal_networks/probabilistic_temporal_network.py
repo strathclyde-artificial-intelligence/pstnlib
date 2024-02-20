@@ -10,7 +10,8 @@ inf = 1e9
 
 class ProbabilisticTemporalNetwork(TemporalNetwork):
     """
-    represents a probabilistic temporal network.
+    Class representing a probabilistic temporal network.
+    -------------------------
     """
     def __init__(self) -> None:
         super().__init__()

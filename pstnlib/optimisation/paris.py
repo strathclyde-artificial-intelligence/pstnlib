@@ -16,11 +16,16 @@ env.start()
 
 def linear_probability(constraint: ProbabilisticConstraint, n: int) -> tuple[list]:
     '''
-    Description: Returns piecewise linear points representing pdf.
-    Input:  constraint - Instance of probabilistic constraint.
-            n - Number of points to partition each region left and right of mean.
-    Output: partitions_l = gradient, intercept pairs representing the piecewise linear segments to the left of the mode
-            partitions_u = gradient, intercept pairs representing the piecewise linear segments to the right of the mode
+    Returns piecewise linear points representing pdf.
+    -----------------
+    Params:
+        constraint:     pstnlib.temporal_networks.constraint.ProbabilisticConstraint
+                            Constraint to be approximated
+        n:              int
+                            number of points to partition each region left and right of mean. 
+    -----------------
+    returns:
+                        tuple(list, list)
     '''
     mean = constraint.mean
     sd = constraint.sd
@@ -60,12 +65,17 @@ def linear_probability(constraint: ProbabilisticConstraint, n: int) -> tuple[lis
 
 def paris(PSTN: ProbabilisticTemporalNetwork, pres: int = 15):
     '''
-    Description:    Implementation of the PARIS algorithm for strong controllability of PSTNs from "PARIS: a Polynomial-Time, Risk-Sensitive Scheduling Algorithm for Probabilistic
-                    Simple Temporal Networks with Uncertainty", Santana et al. 2016.
-    Input:          PSTN - Instance of PSTN to be solved
-                    pres - Number of points for which to partition the function for probabilistic constraints (if pres = 50, then LHS of mode partitioned at 50 points, and RHS of mode partitioned at 50 points)
-                    solver - Defines the LP solver to be used. Can be "gurobi" or "clp"
-    Output:         m - A model containing all variables, constraints and objectives
+    Implementation of the PARIS algorithm for strong controllability of PSTNs from "PARIS: a Polynomial-Time, Risk-Sensitive Scheduling Algorithm for Probabilistic
+    Simple Temporal Networks with Uncertainty", Santana et al. 2016.
+    ---------------------
+    Params:
+        PSTN:   pstnlib.temporal_networks.probabilistic_temporal_network.ProbabilisticTemporalNetwork.
+                    Instance of PSTN to be solved
+        pres:   int
+                pres - Number of points for which to partition the function for probabilistic constraints (if pres = 50, then LHS of mode partitioned at 50 points, and RHS of mode partitioned at 50 points)
+    -----------------
+    returns:
+                gurobipy.Model
     '''
     if PSTN.name != None:
         m = gp.Model("PARIS_{}".format(PSTN.name), env=env)

@@ -4,9 +4,17 @@ from gurobipy import GRB
 
 class Solution(object):
     """
-    Description:    Class representing a solution to PSTN SC as a Gurobi model.
-    Parameters:     model - Gurobi model instance containing solution.
-                    runtime - cumulative runtime of current iteration.
+    Class representing a solution to PSTN SC as a Gurobi model.
+    --------------------
+    Parameters:
+        network:                    pstnlib.temporal_networks.probabilistic_temporal_network.ProbabilisticTemporalNetwork
+                                        PSTN/Corr-STN instance solved.
+        model:                      gurobipy.Model
+                                        Gurobi model for SC
+        runtime:                    float
+                                        Solution runtime
+        experimental_probability:    float
+                                        robustness obtained through Monte-Carlo simulation.           
     """
     def __init__(self, network, model, runtime, bound = None) -> None:
         self.network = network
